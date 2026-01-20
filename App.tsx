@@ -10,8 +10,10 @@ import SettingsModule from './components/SettingsModule';
 import MediaPlayer from './components/MediaPlayer';
 import { InventoryItem, AppView, TransactionRecord, RejectRecord, RejectMasterItem, User, PlaylistItem } from './types';
 import { INITIAL_INVENTORY, SAMPLE_HISTORY, SAMPLE_REJECT_HISTORY, SAMPLE_REJECT_MASTER_DATA, SAMPLE_USERS, SAMPLE_PLAYLIST } from './data';
+import { useToast } from './components/ToastSystem';
 
 const App: React.FC = () => {
+  const { toast } = useToast();
   const [currentView, setCurrentView] = useState<AppView>(AppView.DASHBOARD);
   
   // 1. Main Inventory Data
@@ -41,11 +43,12 @@ const App: React.FC = () => {
         }
         return invItem;
     }));
+    toast.success("Transaction recorded successfully", "Stock Updated");
   };
 
   const handleAddInventoryItems = (newItems: InventoryItem[]) => {
       setItems(prev => [...prev, ...newItems]);
-      alert(`Successfully imported ${newItems.length} items to Main Inventory.`);
+      toast.success(`Imported ${newItems.length} items to Main Inventory`, "Import Successful");
   };
 
   const handleEditTransaction = (originalRecord: TransactionRecord, newRecord: TransactionRecord) => {
@@ -68,10 +71,12 @@ const App: React.FC = () => {
             return { ...invItem, quantity: Math.max(0, newQuantity) };
         });
     });
+    toast.success("Transaction Record Updated & Stock Synced", "Update Complete");
   };
 
   const handleDeleteHistory = (id: string) => {
     setHistory(prev => prev.filter(rec => rec.id !== id));
+    toast.info("Transaction log deleted. Stock was not reverted automatically.", "Record Deleted");
   };
 
   // --- Reject Module Handlers (Independent) ---
@@ -81,25 +86,28 @@ const App: React.FC = () => {
 
   const handleAddRejectMasterItems = (newMasterItems: RejectMasterItem[]) => {
       setRejectMasterData(prev => [...prev, ...newMasterItems]);
-      alert(`Successfully imported ${newMasterItems.length} items to REJECT Master Database.`);
+      toast.success(`Imported ${newMasterItems.length} items to Reject DB`, "Database Updated");
   };
 
   // --- User Management Handlers ---
   const handleAddUser = (newUser: User) => {
     setUsers(prev => [...prev, newUser]);
+    toast.success(`User ${newUser.name} created`, "User Added");
   };
 
   const handleUpdateUser = (updatedUser: User) => {
     setUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
+    toast.success("User profile updated", "Changes Saved");
   };
 
   const handleDeleteUser = (userId: string) => {
     if (userId === 'usr-1') {
-      alert("Cannot delete the Super Admin account.");
+      toast.error("Cannot delete the Super Admin account.", "Action Denied");
       return;
     }
     if (window.confirm("Are you sure you want to delete this user? Access will be revoked immediately.")) {
         setUsers(prev => prev.filter(u => u.id !== userId));
+        toast.success("User removed from system", "User Deleted");
     }
   };
 
@@ -120,13 +128,15 @@ const App: React.FC = () => {
               videoId: videoId
           };
           setPlaylist(prev => [...prev, newItem]);
+          toast.success("Video added to playlist", "Added");
       } else {
-          alert("Invalid YouTube URL");
+          toast.warning("Please enter a valid YouTube URL", "Invalid Link");
       }
   };
 
   const handleRemoveFromPlaylist = (id: string) => {
       setPlaylist(prev => prev.filter(p => p.id !== id));
+      toast.info("Removed from playlist");
   };
 
   const renderContent = () => {

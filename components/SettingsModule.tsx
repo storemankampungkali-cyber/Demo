@@ -117,7 +117,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ users, onAddUser, onUpd
         {/* Content Area */}
         <div className="flex-1 bg-dark-card border border-dark-border rounded-2xl p-6 glass-panel overflow-y-auto">
           {activeTab === 'USERS' ? (
-            <div className="space-y-6">
+            <div className="space-y-6 h-full flex flex-col">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                   <div>
                       <h2 className="text-xl font-bold text-white">Users & Roles</h2>
@@ -143,69 +143,71 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ users, onAddUser, onUpd
                 />
               </div>
 
-              {/* Table */}
-              <div className="overflow-hidden rounded-xl border border-dark-border">
-                <table className="w-full text-left border-collapse">
-                    <thead>
-                        <tr className="bg-dark-bg text-slate-400 text-xs uppercase font-bold">
-                            <th className="p-4">User Identity</th>
-                            <th className="p-4">Role</th>
-                            <th className="p-4">Status</th>
-                            <th className="p-4">Last Active</th>
-                            <th className="p-4 text-right">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-dark-border">
-                        {filteredUsers.map(user => (
-                            <tr key={user.id} className="hover:bg-white/5 transition-colors">
-                                <td className="p-4">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center text-white">
-                                            {user.avatar ? <img src={user.avatar} className="w-full h-full rounded-full" /> : <UserCircle />}
-                                        </div>
-                                        <div>
-                                            <div className="font-medium text-white">{user.name}</div>
-                                            <div className="text-xs text-slate-500">{user.email}</div>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td className="p-4">
-                                    <span className={`px-2 py-1 rounded text-xs font-bold border ${user.role === 'ADMIN' ? 'bg-purple-500/20 text-purple-400 border-purple-500/30' : 'bg-teal-500/20 text-teal-400 border-teal-500/30'}`}>
-                                        {user.role}
-                                    </span>
-                                </td>
-                                <td className="p-4">
-                                     <span className={`flex items-center gap-1.5 text-xs font-medium ${user.status === 'ACTIVE' ? 'text-green-400' : 'text-slate-500'}`}>
-                                        <span className={`w-2 h-2 rounded-full ${user.status === 'ACTIVE' ? 'bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.5)]' : 'bg-slate-600'}`}></span>
-                                        {user.status}
-                                     </span>
-                                </td>
-                                <td className="p-4 text-sm text-slate-400">
-                                    {user.lastActive}
-                                </td>
-                                <td className="p-4 text-right">
-                                    <div className="flex items-center justify-end gap-2">
-                                        <button 
-                                            onClick={() => handleOpenModal(user)}
-                                            className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-                                        >
-                                            <Edit2 className="w-4 h-4" />
-                                        </button>
-                                        {/* Simple RBAC protection: Don't allow deleting ID 'usr-1' (Super Admin) */}
-                                        {user.id !== 'usr-1' && (
-                                            <button 
-                                                onClick={() => onDeleteUser(user.id)}
-                                                className="p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
-                                            >
-                                                <Trash2 className="w-4 h-4" />
-                                            </button>
-                                        )}
-                                    </div>
-                                </td>
+              {/* Table with Sticky Header */}
+              <div className="overflow-hidden rounded-xl border border-dark-border flex-1 flex flex-col max-h-[calc(100vh-350px)]">
+                <div className="overflow-auto custom-scrollbar flex-1 relative">
+                    <table className="w-full text-left border-collapse">
+                        <thead className="sticky top-0 z-10">
+                            <tr className="bg-[#0f111a] text-slate-400 text-xs uppercase font-bold shadow-sm">
+                                <th className="p-4 bg-[#0f111a]">User Identity</th>
+                                <th className="p-4 bg-[#0f111a]">Role</th>
+                                <th className="p-4 bg-[#0f111a]">Status</th>
+                                <th className="p-4 bg-[#0f111a]">Last Active</th>
+                                <th className="p-4 text-right bg-[#0f111a]">Actions</th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody className="divide-y divide-dark-border">
+                            {filteredUsers.map(user => (
+                                <tr key={user.id} className="hover:bg-white/5 transition-colors">
+                                    <td className="p-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center text-white">
+                                                {user.avatar ? <img src={user.avatar} className="w-full h-full rounded-full" /> : <UserCircle />}
+                                            </div>
+                                            <div>
+                                                <div className="font-medium text-white">{user.name}</div>
+                                                <div className="text-xs text-slate-500">{user.email}</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td className="p-4">
+                                        <span className={`px-2 py-1 rounded text-xs font-bold border ${user.role === 'ADMIN' ? 'bg-purple-500/20 text-purple-400 border-purple-500/30' : 'bg-teal-500/20 text-teal-400 border-teal-500/30'}`}>
+                                            {user.role}
+                                        </span>
+                                    </td>
+                                    <td className="p-4">
+                                        <span className={`flex items-center gap-1.5 text-xs font-medium ${user.status === 'ACTIVE' ? 'text-green-400' : 'text-slate-500'}`}>
+                                            <span className={`w-2 h-2 rounded-full ${user.status === 'ACTIVE' ? 'bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.5)]' : 'bg-slate-600'}`}></span>
+                                            {user.status}
+                                        </span>
+                                    </td>
+                                    <td className="p-4 text-sm text-slate-400">
+                                        {user.lastActive}
+                                    </td>
+                                    <td className="p-4 text-right">
+                                        <div className="flex items-center justify-end gap-2">
+                                            <button 
+                                                onClick={() => handleOpenModal(user)}
+                                                className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                                            >
+                                                <Edit2 className="w-4 h-4" />
+                                            </button>
+                                            {/* Simple RBAC protection: Don't allow deleting ID 'usr-1' (Super Admin) */}
+                                            {user.id !== 'usr-1' && (
+                                                <button 
+                                                    onClick={() => onDeleteUser(user.id)}
+                                                    className="p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                            )}
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
               </div>
             </div>
           ) : (

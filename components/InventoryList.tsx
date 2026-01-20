@@ -2,6 +2,7 @@ import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { InventoryItem, TransactionRecord } from '../types';
 import { Search, Filter, MoreHorizontal, Plus, Download, FileSpreadsheet, X, Calendar, ArrowUpRight, ArrowDownLeft, TrendingUp, History } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { useToast } from './ToastSystem';
 
 interface InventoryListProps {
   items: InventoryItem[];
@@ -10,6 +11,7 @@ interface InventoryListProps {
 }
 
 const InventoryList: React.FC<InventoryListProps> = ({ items, history, onAddItems }) => {
+  const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('All');
   
@@ -53,6 +55,7 @@ const InventoryList: React.FC<InventoryListProps> = ({ items, history, onAddItem
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Template");
       XLSX.writeFile(wb, "Inventory_Master_Template.xlsx");
+      toast.info("Template downloaded successfully");
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -60,32 +63,85 @@ const InventoryList: React.FC<InventoryListProps> = ({ items, history, onAddItem
       if (!file) return;
 
       const reader = new FileReader();
+      
+      reader.onerror = () => {
+          toast.error("Failed to read file. It might be corrupted.", "Read Error");
+          if (fileInputRef.current) fileInputRef.current.value = '';
+      };
+
       reader.onload = (evt) => {
-          const bstr = evt.target?.result;
-          const wb = XLSX.read(bstr, { type: 'binary' });
-          const wsname = wb.SheetNames[0];
-          const ws = wb.Sheets[wsname];
-          const data = XLSX.utils.sheet_to_json(ws);
+          try {
+              const bstr = evt.target?.result;
+              const wb = XLSX.read(bstr, { type: 'binary' });
+              
+              if (wb.SheetNames.length === 0) {
+                  throw new Error("Excel file is empty (no sheets found).");
+              }
 
-          // Map and validate
-          const newItems: InventoryItem[] = data.map((row: any) => ({
-              id: `IMP-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-              name: row['Name'] || 'Unknown Item',
-              sku: row['SKU'] || `GEN-${Math.floor(Math.random()*10000)}`,
-              category: row['Category'] || 'General',
-              price: Number(row['Price']) || 0,
-              quantity: Number(row['Quantity']) || 0,
-              status: row['Status'] || 'In Stock',
-              lastUpdated: new Date().toISOString().split('T')[0]
-          })).filter((i: InventoryItem) => i.name !== 'Unknown Item'); // Simple validation
+              const wsname = wb.SheetNames[0];
+              const ws = wb.Sheets[wsname];
+              const data = XLSX.utils.sheet_to_json(ws);
 
-          if (newItems.length > 0) {
-              onAddItems(newItems);
+              if (data.length === 0) {
+                  throw new Error("Sheet contains no data rows.");
+              }
+
+              // Map and validate
+              const newItems: InventoryItem[] = [];
+              const errors: string[] = [];
+
+              data.forEach((row: any, index) => {
+                  const rowNum = index + 2; // +1 for header, +1 for 0-index
+                  
+                  if (!row['Name']) {
+                      errors.push(`Row ${rowNum}: Missing 'Name'`);
+                      return;
+                  }
+
+                  const qty = Number(row['Quantity']);
+                  if (isNaN(qty) || qty < 0) {
+                      errors.push(`Row ${rowNum}: Invalid Quantity '${row['Quantity']}'`);
+                      return;
+                  }
+
+                  const price = Number(row['Price']);
+                  if (isNaN(price) || price < 0) {
+                      errors.push(`Row ${rowNum}: Invalid Price '${row['Price']}'`);
+                      return;
+                  }
+
+                  newItems.push({
+                      id: `IMP-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+                      name: String(row['Name']).trim(),
+                      sku: row['SKU'] ? String(row['SKU']).trim() : `GEN-${Math.floor(Math.random()*10000)}`,
+                      category: row['Category'] ? String(row['Category']).trim() : 'General',
+                      price: price,
+                      quantity: qty,
+                      status: row['Status'] || (qty > 10 ? 'In Stock' : 'Low Stock'),
+                      lastUpdated: new Date().toISOString().split('T')[0]
+                  });
+              });
+
+              if (errors.length > 0) {
+                  console.warn("Import Validation Errors:", errors);
+                  toast.warning(`Imported ${newItems.length} items, but skipped ${errors.length} invalid rows.`, "Partial Import");
+              } 
+
+              if (newItems.length > 0) {
+                  onAddItems(newItems); // Success toast is handled in parent
+              } else {
+                  toast.error("No valid items found to import.", "Import Failed");
+              }
+
+          } catch (err: any) {
+              console.error("Excel Processing Error:", err);
+              toast.error(err.message || "Failed to parse Excel file. Check format.", "Import Error");
+          } finally {
+              // Reset input
+              if (fileInputRef.current) fileInputRef.current.value = '';
           }
       };
       reader.readAsBinaryString(file);
-      // Reset input
-      if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   // --- STOCK CARD LOGIC ---
@@ -251,12 +307,12 @@ const InventoryList: React.FC<InventoryListProps> = ({ items, history, onAddItem
         </div>
       </div>
 
-      {/* Table */}
-      <div className="bg-dark-card border border-dark-border rounded-xl overflow-hidden glass-panel">
-        <div className="overflow-x-auto">
+      {/* Table with Sticky Header */}
+      <div className="bg-dark-card border border-dark-border rounded-xl overflow-hidden glass-panel flex flex-col h-[calc(100vh-280px)]">
+        <div className="overflow-auto flex-1 custom-scrollbar relative">
           <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-dark-bg/50 border-b border-dark-border text-slate-400 uppercase text-xs tracking-wider">
+            <thead className="sticky top-0 z-10">
+              <tr className="bg-[#161b28] border-b border-dark-border text-slate-400 uppercase text-xs tracking-wider shadow-md">
                 <th className="p-4 font-semibold">Product Name</th>
                 <th className="p-4 font-semibold">SKU</th>
                 <th className="p-4 font-semibold">Category</th>
@@ -303,14 +359,16 @@ const InventoryList: React.FC<InventoryListProps> = ({ items, history, onAddItem
                   </td>
                 </tr>
               ))}
+              {filteredItems.length === 0 && (
+                <tr>
+                    <td colSpan={7} className="p-12 text-center text-slate-500">
+                        No items found matching your criteria.
+                    </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
-        {filteredItems.length === 0 && (
-          <div className="p-12 text-center text-slate-500">
-            No items found matching your criteria.
-          </div>
-        )}
       </div>
 
       {/* STOCK CARD MODAL */}
@@ -397,15 +455,15 @@ const InventoryList: React.FC<InventoryListProps> = ({ items, history, onAddItem
                           <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
                               <TrendingUp className="w-5 h-5 text-neon-purple" /> Stock Movements
                           </h3>
-                          <div className="bg-dark-bg border border-dark-border rounded-lg overflow-hidden">
+                          <div className="bg-dark-bg border border-dark-border rounded-lg overflow-hidden max-h-96 overflow-y-auto custom-scrollbar">
                               <table className="w-full text-sm text-left">
-                                  <thead className="bg-dark-card text-slate-400 uppercase text-xs">
+                                  <thead className="bg-dark-card text-slate-400 uppercase text-xs sticky top-0 z-10">
                                       <tr>
-                                          <th className="p-3">Date</th>
-                                          <th className="p-3">Ref</th>
-                                          <th className="p-3">Description</th>
-                                          <th className="p-3 text-right">In/Out</th>
-                                          <th className="p-3 text-right">Balance</th>
+                                          <th className="p-3 bg-dark-card">Date</th>
+                                          <th className="p-3 bg-dark-card">Ref</th>
+                                          <th className="p-3 bg-dark-card">Description</th>
+                                          <th className="p-3 text-right bg-dark-card">In/Out</th>
+                                          <th className="p-3 text-right bg-dark-card">Balance</th>
                                       </tr>
                                   </thead>
                                   <tbody className="divide-y divide-dark-border text-slate-300">

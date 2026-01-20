@@ -101,3 +101,14 @@ export enum AppView {
   REJECT = 'REJECT',
   SETTINGS = 'SETTINGS'
 }
+
+// NEW: Toast System Types
+export type ToastType = 'success' | 'error' | 'warning' | 'info';
+
+export interface ToastMessage {
+  id: string;
+  type: ToastType;
+  title?: string;
+  message: string;
+  duration?: number;
+}

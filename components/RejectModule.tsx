@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { RejectMasterItem, RejectCartItem, UnitDefinition, RejectRecord } from '../types';
 import { Search, Trash2, Calendar, ClipboardCopy, Building2, Ban, Plus, Save, History as HistoryIcon, Download, FileSpreadsheet, Database } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { useToast } from './ToastSystem';
 
 interface RejectModuleProps {
   masterData: RejectMasterItem[]; // Completely separate from InventoryItem
@@ -22,6 +23,7 @@ const REJECT_UNITS: UnitDefinition[] = [
 ];
 
 const RejectModule: React.FC<RejectModuleProps> = ({ masterData, rejectHistory, onSaveReject, onAddMasterItems }) => {
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<'ENTRY' | 'HISTORY'>('ENTRY');
   
   // -- ENTRY STATE --
@@ -89,6 +91,7 @@ const RejectModule: React.FC<RejectModuleProps> = ({ masterData, rejectHistory, 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Reject_Master_Template");
     XLSX.writeFile(wb, "Reject_DB_Template.xlsx");
+    toast.info("Template downloaded");
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -123,7 +126,7 @@ const RejectModule: React.FC<RejectModuleProps> = ({ masterData, rejectHistory, 
   // --- Clipboard Logic ---
   const handleCopyCurrentEntry = async () => {
     if (rejectList.length === 0) {
-        alert("List is empty!");
+        toast.warning("List is empty!", "Cannot Copy");
         return;
     }
     const header = `Data Reject ${outletName || '[Outlet]'} ${getFormattedDate(date)}`;
@@ -132,9 +135,10 @@ const RejectModule: React.FC<RejectModuleProps> = ({ masterData, rejectHistory, 
 
     try {
         await navigator.clipboard.writeText(fullText);
-        alert("Copied to clipboard!\n\nPreview:\n" + fullText);
+        toast.success("Text copied to clipboard", "Copied");
     } catch (err) {
         console.error('Failed to copy', err);
+        toast.error("Failed to copy to clipboard");
     }
   };
 
@@ -145,9 +149,10 @@ const RejectModule: React.FC<RejectModuleProps> = ({ masterData, rejectHistory, 
 
       try {
         await navigator.clipboard.writeText(fullText);
-        alert("History Record Copied!\n\n" + fullText);
+        toast.success("History Record Copied!");
     } catch (err) {
         console.error('Failed to copy', err);
+        toast.error("Failed to copy");
     }
   };
 
@@ -165,7 +170,7 @@ const RejectModule: React.FC<RejectModuleProps> = ({ masterData, rejectHistory, 
       onSaveReject(newRecord);
       setRejectList([]);
       setOutletName('');
-      alert("Reject Record Saved to Independent History.");
+      toast.success("Reject Record Saved to Independent History.");
   };
 
   useEffect(() => {
@@ -402,47 +407,49 @@ const RejectModule: React.FC<RejectModuleProps> = ({ masterData, rejectHistory, 
         </div>
       ) : (
         /* --- HISTORY TAB --- */
-        <div className="bg-dark-card border border-dark-border rounded-xl overflow-hidden glass-panel flex-1 overflow-y-auto">
-            <table className="w-full text-left border-collapse">
-                <thead>
-                     <tr className="bg-dark-bg/50 border-b border-dark-border text-slate-400 uppercase text-xs tracking-wider">
-                        <th className="p-4 w-32">Tanggal</th>
-                        <th className="p-4 w-40">ID</th>
-                        <th className="p-4">Outlet</th>
-                        <th className="p-4">Ringkasan Barang</th>
-                        <th className="p-4 text-right">Total</th>
-                        <th className="p-4 text-center">Aksi</th>
-                     </tr>
-                </thead>
-                <tbody className="divide-y divide-dark-border">
-                    {rejectHistory.length > 0 ? rejectHistory.map(record => (
-                        <tr key={record.id} className="hover:bg-dark-hover/50 transition-colors">
-                            <td className="p-4"><div className="text-white font-mono text-sm">{record.date}</div></td>
-                            <td className="p-4"><div className="text-xs text-red-400 font-mono">{record.id}</div></td>
-                            <td className="p-4 text-white font-medium">{record.outletName}</td>
-                            <td className="p-4">
-                                <div className="text-sm text-slate-400">
-                                    {record.items.map(i => i.name).slice(0, 2).join(", ")}
-                                    {record.items.length > 2 && ` +${record.items.length - 2} lainnya`}
-                                </div>
-                            </td>
-                            <td className="p-4 text-right text-white font-bold">{record.totalItems}</td>
-                            <td className="p-4 text-center">
-                                <button 
-                                    onClick={() => handleCopyHistoryRecord(record)}
-                                    className="flex items-center justify-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white rounded-lg transition-all mx-auto border border-white/10"
-                                    title="Salin Format Text ke Clipboard"
-                                >
-                                    <ClipboardCopy className="w-4 h-4" />
-                                    <span className="text-xs">Salin</span>
-                                </button>
-                            </td>
+        <div className="bg-dark-card border border-dark-border rounded-xl overflow-hidden glass-panel flex-1 flex flex-col custom-scrollbar relative">
+            <div className="overflow-auto flex-1 custom-scrollbar relative">
+                <table className="w-full text-left border-collapse">
+                    <thead className="sticky top-0 z-10">
+                        <tr className="bg-[#161b28] border-b border-dark-border text-slate-400 uppercase text-xs tracking-wider shadow-sm">
+                            <th className="p-4 w-32">Tanggal</th>
+                            <th className="p-4 w-40">ID</th>
+                            <th className="p-4">Outlet</th>
+                            <th className="p-4">Ringkasan Barang</th>
+                            <th className="p-4 text-right">Total</th>
+                            <th className="p-4 text-center">Aksi</th>
                         </tr>
-                    )) : (
-                        <tr><td colSpan={6} className="p-12 text-center text-slate-500">Belum ada riwayat reject.</td></tr>
-                    )}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody className="divide-y divide-dark-border">
+                        {rejectHistory.length > 0 ? rejectHistory.map(record => (
+                            <tr key={record.id} className="hover:bg-dark-hover/50 transition-colors">
+                                <td className="p-4"><div className="text-white font-mono text-sm">{record.date}</div></td>
+                                <td className="p-4"><div className="text-xs text-red-400 font-mono">{record.id}</div></td>
+                                <td className="p-4 text-white font-medium">{record.outletName}</td>
+                                <td className="p-4">
+                                    <div className="text-sm text-slate-400">
+                                        {record.items.map(i => i.name).slice(0, 2).join(", ")}
+                                        {record.items.length > 2 && ` +${record.items.length - 2} lainnya`}
+                                    </div>
+                                </td>
+                                <td className="p-4 text-right text-white font-bold">{record.totalItems}</td>
+                                <td className="p-4 text-center">
+                                    <button 
+                                        onClick={() => handleCopyHistoryRecord(record)}
+                                        className="flex items-center justify-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white rounded-lg transition-all mx-auto border border-white/10"
+                                        title="Salin Format Text ke Clipboard"
+                                    >
+                                        <ClipboardCopy className="w-4 h-4" />
+                                        <span className="text-xs">Salin</span>
+                                    </button>
+                                </td>
+                            </tr>
+                        )) : (
+                            <tr><td colSpan={6} className="p-12 text-center text-slate-500">Belum ada riwayat reject.</td></tr>
+                        )}
+                    </tbody>
+                </table>
+            </div>
         </div>
       )}
     </div>

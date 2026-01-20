@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { InventoryItem, CartItem, UnitDefinition, TransactionRecord } from '../types';
 import { Search, Trash2, Calendar, FileSpreadsheet, ShoppingCart, ChevronDown, Camera, ArrowDownLeft, ArrowUpRight, X, Download, Edit2, FileText, Hash, AlignLeft, Image as ImageIcon } from 'lucide-react';
+import { useToast } from './ToastSystem';
 
 interface TransactionModuleProps {
   items: InventoryItem[];
@@ -65,6 +66,14 @@ const CartItemRow: React.FC<{
       if (e.key === 'Enter') setEditMode('NONE');
   }
 
+  // VALIDATION: Prevent negative inputs
+  const handleQtyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      let val = parseInt(e.target.value);
+      if (isNaN(val)) val = 0;
+      if (val < 0) val = 1; // Auto-correct negative to 1
+      onUpdateQty(val);
+  };
+
   return (
     <div className={`bg-dark-card border border-dark-border p-3 rounded-xl flex items-center justify-between group hover:border-slate-600 transition-colors ${editMode !== 'NONE' ? `border-${themeColor.replace('text-', '')}` : ''}`}>
       {/* Product Info */}
@@ -86,7 +95,7 @@ const CartItemRow: React.FC<{
                     min="1"
                     className={`w-16 bg-dark-bg border ${borderColor} text-white text-right px-1 py-0.5 rounded text-sm focus:outline-none focus:ring-1 focus:ring-${themeColor.replace('text-', '')}`}
                     value={item.orderQuantity}
-                    onChange={(e) => onUpdateQty(parseInt(e.target.value) || 0)}
+                    onChange={handleQtyChange}
                     onBlur={handleBlur}
                     onKeyDown={handleQtyKeyDown}
                 />
@@ -151,6 +160,7 @@ const CartItemRow: React.FC<{
 };
 
 const TransactionModule: React.FC<TransactionModuleProps> = ({ items, onTransactionComplete }) => {
+  const { toast } = useToast();
   const [transactionType, setTransactionType] = useState<TransactionType>('OUT');
   const [searchTerm, setSearchTerm] = useState('');
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -189,6 +199,12 @@ const TransactionModule: React.FC<TransactionModuleProps> = ({ items, onTransact
   }, []);
 
   const addToCart = (item: InventoryItem) => {
+    // Check duplication
+    if (cart.some(c => c.id === item.id)) {
+        toast.warning(`${item.name} is already in the cart.`, "Duplicate Item");
+        return;
+    }
+
     const newCartId = crypto.randomUUID();
     
     setCart(prev => {
@@ -253,7 +269,22 @@ const TransactionModule: React.FC<TransactionModuleProps> = ({ items, onTransact
   };
 
   const handleConfirmTransaction = () => {
-    if (cart.length === 0) return;
+    if (cart.length === 0) {
+        toast.error("Cart is empty", "Action Failed");
+        return;
+    }
+
+    // Validation: Stock Out Logic
+    if (transactionType === 'OUT') {
+        const insufficientItems = cart.filter(c => (c.orderQuantity * c.selectedUnit.ratio) > c.quantity);
+        if (insufficientItems.length > 0) {
+            toast.error(
+                `Insufficient stock for: ${insufficientItems.map(i => i.name).join(', ')}`, 
+                "Stock Validation Error"
+            );
+            return;
+        }
+    }
 
     const totalUnits = calculateTotalUnits();
     const reference = transactionType === 'IN' 
@@ -300,6 +331,7 @@ const TransactionModule: React.FC<TransactionModuleProps> = ({ items, onTransact
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    toast.info("Import template downloaded.");
   };
 
   const calculateTotalUnits = () => {

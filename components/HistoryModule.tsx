@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { TransactionRecord, InventoryItem, CartItem, UnitDefinition } from '../types';
 import { Search, Eye, Trash2, Edit2, X, ChevronRight, Hash, Image as ImageIcon, FileText, FileSpreadsheet, Download, Plus, Save, AlertTriangle } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { useToast } from './ToastSystem';
 
 // Copy of Units from TransactionModule (In real app, move to constants file)
 const UNITS: UnitDefinition[] = [
@@ -19,6 +20,7 @@ interface HistoryModuleProps {
 }
 
 const HistoryModule: React.FC<HistoryModuleProps> = ({ history, inventoryItems, onDelete, onEditTransaction }) => {
+  const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -80,6 +82,7 @@ const HistoryModule: React.FC<HistoryModuleProps> = ({ history, inventoryItems, 
       if (selectedRecord && window.confirm('Are you sure you want to delete this log? Note: This assumes you handle stock reversal manually or this is just a log cleanup.')) {
           onDelete(selectedRecord.id);
           setSelectedRecord(null);
+          // Toast handled in parent for consistency with state update, but good to know UI logic is here
       }
   }
 
@@ -113,7 +116,7 @@ const HistoryModule: React.FC<HistoryModuleProps> = ({ history, inventoryItems, 
       
       // Check if already exists
       if (editingRecord.items.find(i => i.id === invItem.id)) {
-          alert('Item already in list');
+          toast.warning(`"${invItem.name}" is already in the list`, "Duplicate Item");
           return;
       }
 
@@ -130,6 +133,7 @@ const HistoryModule: React.FC<HistoryModuleProps> = ({ history, inventoryItems, 
       });
       setItemSearchTerm('');
       setShowItemSuggestions(false);
+      toast.info(`Added ${invItem.name} to edit list`);
   };
 
   // -- Excel Export --
@@ -155,6 +159,7 @@ const HistoryModule: React.FC<HistoryModuleProps> = ({ history, inventoryItems, 
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "History");
     XLSX.writeFile(workbook, `NeonFlow_Export_${new Date().toISOString().split('T')[0]}.xlsx`);
+    toast.success("History exported to Excel", "Download Started");
   };
 
   const filteredSuggestions = inventoryItems.filter(i => 
@@ -163,7 +168,7 @@ const HistoryModule: React.FC<HistoryModuleProps> = ({ history, inventoryItems, 
   );
 
   return (
-    <div className="space-y-6 animate-fade-in relative h-full">
+    <div className="space-y-6 animate-fade-in relative h-full flex flex-col">
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
@@ -192,48 +197,50 @@ const HistoryModule: React.FC<HistoryModuleProps> = ({ history, inventoryItems, 
              </div>
         </div>
 
-        {/* List */}
-        <div className="bg-dark-card border border-dark-border rounded-xl overflow-hidden glass-panel min-h-[400px]">
-            <table className="w-full text-left border-collapse">
-                <thead>
-                     <tr className="bg-dark-bg/50 border-b border-dark-border text-slate-400 uppercase text-xs tracking-wider">
-                        <th className="p-4 w-32">Date</th>
-                        <th className="p-4 w-40">Transaction ID</th>
-                        <th className="p-4 w-32">Type</th>
-                        <th className="p-4">Description (Ref)</th>
-                        <th className="p-4">Items Count</th>
-                        <th className="p-4">Photos</th>
-                        <th className="p-4 text-right">Action</th>
-                     </tr>
-                </thead>
-                <tbody className="divide-y divide-dark-border">
-                    {filteredHistory.map(record => (
-                        <tr key={record.id} className="hover:bg-dark-hover/50 transition-colors group cursor-pointer" onClick={() => handleOpenDetail(record)}>
-                            <td className="p-4"><div className="text-white font-mono text-sm">{record.date}</div></td>
-                            <td className="p-4"><div className="text-xs text-slate-400 font-mono">{record.id}</div></td>
-                            <td className="p-4"><span className={`px-2 py-1 rounded text-xs font-bold ${record.type === 'IN' ? 'text-neon-teal bg-neon-teal/10' : 'text-neon-pink bg-neon-pink/10'}`}>{record.type}</span></td>
-                            <td className="p-4">
-                                <div className="text-slate-200 text-sm truncate max-w-[200px]" title={record.notes}>
-                                    {record.notes ? record.notes : "-"}
-                                </div>
-                                {record.referenceNumber && (
-                                    <div className="text-[10px] text-slate-500 font-mono mt-0.5">{record.referenceNumber}</div>
-                                )}
-                            </td>
-                            <td className="p-4 text-slate-300">{record.items.length} Items</td>
-                            <td className="p-4">{record.photos.length > 0 ? <ImageIcon className="w-4 h-4 text-slate-400" /> : '-'}</td>
-                            <td className="p-4 text-right"><ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-white" /></td>
+        {/* List with Sticky Header */}
+        <div className="bg-dark-card border border-dark-border rounded-xl overflow-hidden glass-panel h-[calc(100vh-280px)] flex flex-col">
+            <div className="overflow-auto flex-1 custom-scrollbar relative">
+                <table className="w-full text-left border-collapse">
+                    <thead className="sticky top-0 z-10">
+                        <tr className="bg-[#161b28] border-b border-dark-border text-slate-400 uppercase text-xs tracking-wider shadow-sm">
+                            <th className="p-4 w-32">Date</th>
+                            <th className="p-4 w-40">Transaction ID</th>
+                            <th className="p-4 w-32">Type</th>
+                            <th className="p-4">Description (Ref)</th>
+                            <th className="p-4">Items Count</th>
+                            <th className="p-4">Photos</th>
+                            <th className="p-4 text-right">Action</th>
                         </tr>
-                    ))}
-                    {filteredHistory.length === 0 && <tr><td colSpan={7} className="p-12 text-center text-slate-500">No data found.</td></tr>}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody className="divide-y divide-dark-border">
+                        {filteredHistory.map(record => (
+                            <tr key={record.id} className="hover:bg-dark-hover/50 transition-colors group cursor-pointer" onClick={() => handleOpenDetail(record)}>
+                                <td className="p-4"><div className="text-white font-mono text-sm">{record.date}</div></td>
+                                <td className="p-4"><div className="text-xs text-slate-400 font-mono">{record.id}</div></td>
+                                <td className="p-4"><span className={`px-2 py-1 rounded text-xs font-bold ${record.type === 'IN' ? 'text-neon-teal bg-neon-teal/10' : 'text-neon-pink bg-neon-pink/10'}`}>{record.type}</span></td>
+                                <td className="p-4">
+                                    <div className="text-slate-200 text-sm truncate max-w-[200px]" title={record.notes}>
+                                        {record.notes ? record.notes : "-"}
+                                    </div>
+                                    {record.referenceNumber && (
+                                        <div className="text-[10px] text-slate-500 font-mono mt-0.5">{record.referenceNumber}</div>
+                                    )}
+                                </td>
+                                <td className="p-4 text-slate-300">{record.items.length} Items</td>
+                                <td className="p-4">{record.photos.length > 0 ? <ImageIcon className="w-4 h-4 text-slate-400" /> : '-'}</td>
+                                <td className="p-4 text-right"><ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-white" /></td>
+                            </tr>
+                        ))}
+                        {filteredHistory.length === 0 && <tr><td colSpan={7} className="p-12 text-center text-slate-500">No data found.</td></tr>}
+                    </tbody>
+                </table>
+            </div>
         </div>
 
         {/* Detail / Edit Modal */}
         {selectedRecord && (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-                <div className="bg-dark-card border border-dark-border rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col">
+                <div className="bg-dark-card border border-dark-border rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col custom-scrollbar">
                     
                     {/* Header */}
                     <div className="p-6 border-b border-dark-border flex justify-between items-start bg-dark-card sticky top-0 z-10">
@@ -406,7 +413,7 @@ const HistoryModule: React.FC<HistoryModuleProps> = ({ history, inventoryItems, 
                     </div>
 
                     {/* Footer Actions */}
-                    <div className="p-6 border-t border-dark-border bg-dark-bg/50 flex justify-between items-center">
+                    <div className="p-6 border-t border-dark-border bg-dark-bg/50 flex justify-between items-center sticky bottom-0 bg-dark-card z-10">
                         <button onClick={handleDelete} className="flex items-center gap-2 text-red-400 hover:text-red-300 px-4 py-2 hover:bg-red-500/10 rounded-lg transition-colors">
                             <Trash2 className="w-4 h-4" /> Delete Record
                         </button>
