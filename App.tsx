@@ -73,13 +73,18 @@ const App: React.FC = () => {
   };
 
   useEffect(() => {
-    const savedAuth = localStorage.getItem('neonflow_auth');
-    if (savedAuth) {
-      const authData = JSON.parse(savedAuth) as AuthResponse;
-      setIsAuthenticated(true);
-      setCurrentUser(authData.user);
+    try {
+        const savedAuth = localStorage.getItem('neonflow_auth');
+        if (savedAuth) {
+            const authData = JSON.parse(savedAuth) as AuthResponse;
+            setIsAuthenticated(true);
+            setCurrentUser(authData.user);
+        }
+    } catch (e) {
+        console.warn("Storage access restricted", e);
+    } finally {
+        setIsLoading(false);
     }
-    setIsLoading(false);
   }, []);
 
   useEffect(() => {
@@ -89,13 +94,17 @@ const App: React.FC = () => {
   }, [isAuthenticated]);
 
   const handleLoginSuccess = (authData: AuthResponse) => {
-    localStorage.setItem('neonflow_auth', JSON.stringify(authData));
+    try {
+        localStorage.setItem('neonflow_auth', JSON.stringify(authData));
+    } catch (e) {}
     setCurrentUser(authData.user);
     setIsAuthenticated(true);
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('neonflow_auth');
+    try {
+        localStorage.removeItem('neonflow_auth');
+    } catch (e) {}
     setIsAuthenticated(false);
     setCurrentUser(null);
     toast.info("Session terminated", "Logged Out");
@@ -222,7 +231,7 @@ const App: React.FC = () => {
   const renderContent = () => {
     if (isLoading) {
         return (
-            <div className="flex flex-col items-center justify-center h-[60vh] text-neon-teal animate-pulse">
+            <div className="flex flex-col items-center justify-center h-[80vh] text-neon-teal animate-pulse">
                 <div className="w-16 h-16 border-4 border-neon-teal border-t-transparent rounded-full animate-spin mb-4"></div>
                 <h2 className="text-xl font-bold tracking-widest">CONNECTING TO MAINFRAME...</h2>
             </div>
@@ -254,7 +263,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-dark-bg text-slate-200 font-sans selection:bg-neon-teal selection:text-black">
+    <div className="relative flex min-h-screen bg-dark-bg text-slate-200 font-sans selection:bg-neon-teal selection:text-black overflow-x-hidden">
       {isAuthenticated && (
         <Sidebar 
           currentView={currentView} 
@@ -263,17 +272,22 @@ const App: React.FC = () => {
           userName={currentUser?.name}
         />
       )}
-      <main className={`flex-1 ${isAuthenticated ? 'lg:ml-64 p-4 lg:p-8' : ''} transition-all duration-300`}>
+      
+      {/* Main Content dengan Z-Index Tinggi */}
+      <main className={`relative z-10 flex-1 ${isAuthenticated ? 'lg:ml-64 p-4 lg:p-8' : 'w-full'} transition-all duration-300`}>
         <div className="max-w-7xl mx-auto mt-16 lg:mt-0">
           {renderContent()}
         </div>
       </main>
+
       {isAuthenticated && (
         <MediaPlayer videoId={currentVideoId} playlist={playlist} onPlay={setCurrentVideoId} onClose={() => setCurrentVideoId(null)} />
       )}
-      <div className="fixed top-0 left-0 w-full h-full pointer-events-none z-[-1] overflow-hidden">
-        <div className="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] bg-purple-900/10 rounded-full blur-[100px]" />
-        <div className="absolute bottom-[-10%] left-[-10%] w-[500px] h-[500px] bg-teal-900/10 rounded-full blur-[100px]" />
+
+      {/* Background ambient effects dengan Z-Index sangat rendah */}
+      <div className="fixed top-0 left-0 w-full h-full pointer-events-none z-0 overflow-hidden">
+        <div className="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] bg-purple-900/10 rounded-full blur-[120px]" />
+        <div className="absolute bottom-[-10%] left-[-10%] w-[500px] h-[500px] bg-teal-900/10 rounded-full blur-[120px]" />
       </div>
     </div>
   );
