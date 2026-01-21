@@ -1,16 +1,14 @@
 
+require('dotenv').config();
 const { Sequelize, DataTypes } = require('sequelize');
 const bcrypt = require('bcryptjs');
 
-// Database Connection
-const sequelize = new Sequelize('neonflow_inventory', 'dudung', 'Lokasiku123.', {
-  host: '127.0.0.1',
+const sequelize = new Sequelize(process.env.DB_NAME, process.env.DB_USER, process.env.DB_PASS, {
+  host: process.env.DB_HOST,
   dialect: 'mysql',
   logging: false,
   define: { timestamps: false }
 });
-
-// --- MODEL DEFINITIONS ---
 
 const Inventory = sequelize.define('Inventory', {
   id: { type: DataTypes.STRING, primaryKey: true },
@@ -65,59 +63,39 @@ const User = sequelize.define('User', {
         const salt = await bcrypt.genSalt(10);
         user.password = await bcrypt.hash(user.password, salt);
       }
-    },
-    beforeUpdate: async (user) => {
-      if (user.changed('password')) {
-        const salt = await bcrypt.genSalt(10);
-        user.password = await bcrypt.hash(user.password, salt);
-      }
     }
   }
 });
 
-// Instance method to check password
 User.prototype.validatePassword = async function(password) {
   return await bcrypt.compare(password, this.password);
 };
 
-// --- STANDALONE SETUP FUNCTION ---
-// Runs when file is executed directly: node setupDB.js
 const initDB = async () => {
     try {
         console.log('🚀 INITIALIZING NEONFLOW DATABASE...');
-        
-        // Sync models to database (DROPS EXISTING TABLES)
         await sequelize.sync({ force: true });
-        console.log('✅ Tables created successfully.');
-
-        // Seed default Admin as requested: admin / 22
+        
         await User.create({
             id: 'usr-admin-01',
             name: 'Super Admin',
-            email: 'admin', // Using 'admin' as the identifier
-            password: '22',  // Hashed by hooks
+            email: 'admin',
+            password: '22',
             role: 'ADMIN',
             status: 'ACTIVE',
             lastActive: 'System Initialized'
         });
 
-        console.log('✅ Default Super Admin created.');
-        console.log('--- LOGIN CREDENTIALS ---');
-        console.log('Username: admin');
-        console.log('Password: 22');
-        console.log('-------------------------');
-        
+        console.log('✅ Success! Login: admin / 22');
         process.exit(0);
     } catch (error) {
-        console.error('❌ Database Initialization Failed:', error);
+        console.error('❌ Error:', error);
         process.exit(1);
     }
 };
 
-// Export for app usage
 module.exports = { sequelize, Inventory, Transaction, RejectMaster, RejectRecord, User };
 
-// Execute if run via command line
 if (require.main === module) {
     initDB();
 }
