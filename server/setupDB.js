@@ -1,11 +1,11 @@
 
 require('dotenv').config();
-const { sequelize, User } = require('./models');
+const { sequelize, User } = require('./index');
 
 const initDB = async () => {
     try {
         console.log('🚀 INITIALIZING NEONFLOW DATABASE...');
-        // Menghapus dan membuat ulang tabel sesuai model
+        // Menghapus dan membuat ulang tabel sesuai model yang didefinisikan di index.js
         await sequelize.sync({ force: true });
         
         // Membuat admin default

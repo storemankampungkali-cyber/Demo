@@ -3,19 +3,101 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
-// Mengambil instance dari models.js yang benar
-const { sequelize, Inventory, Transaction, RejectMaster, RejectRecord, User } = require('./models');
+const { Sequelize, DataTypes } = require('sequelize');
+const bcrypt = require('bcryptjs');
 
+// --- 1. DATABASE CONFIGURATION ---
+const sequelize = new Sequelize(
+  process.env.DB_NAME || 'neonflow_inventory', 
+  process.env.DB_USER || 'root', 
+  process.env.DB_PASS || '', 
+  {
+    host: process.env.DB_HOST || '127.0.0.1',
+    dialect: 'mysql',
+    logging: false,
+    define: { timestamps: false }
+  }
+);
+
+// --- 2. MODEL DEFINITIONS ---
+const Inventory = sequelize.define('Inventory', {
+  id: { type: DataTypes.STRING, primaryKey: true },
+  name: { type: DataTypes.STRING, allowNull: false },
+  sku: { type: DataTypes.STRING, allowNull: false },
+  category: { type: DataTypes.STRING, allowNull: false },
+  quantity: { type: DataTypes.INTEGER, defaultValue: 0 },
+  price: { type: DataTypes.FLOAT, defaultValue: 0 },
+  status: { type: DataTypes.STRING, defaultValue: 'In Stock' },
+  lastUpdated: { type: DataTypes.STRING }
+});
+
+const Transaction = sequelize.define('Transaction', {
+  id: { type: DataTypes.STRING, primaryKey: true },
+  date: { type: DataTypes.STRING, allowNull: false },
+  type: { type: DataTypes.ENUM('IN', 'OUT'), allowNull: false },
+  items: { type: DataTypes.JSON, allowNull: false },
+  totalUnits: { type: DataTypes.INTEGER, allowNull: false },
+  referenceNumber: { type: DataTypes.STRING },
+  notes: { type: DataTypes.TEXT },
+  photos: { type: DataTypes.JSON }
+});
+
+const RejectMaster = sequelize.define('RejectMaster', {
+  id: { type: DataTypes.STRING, primaryKey: true },
+  name: { type: DataTypes.STRING, allowNull: false },
+  sku: { type: DataTypes.STRING, allowNull: false },
+  defaultUnit: { type: DataTypes.STRING, allowNull: false },
+  category: { type: DataTypes.STRING, allowNull: false }
+});
+
+const RejectRecord = sequelize.define('RejectRecord', {
+  id: { type: DataTypes.STRING, primaryKey: true },
+  date: { type: DataTypes.STRING, allowNull: false },
+  outletName: { type: DataTypes.STRING, allowNull: false },
+  items: { type: DataTypes.JSON, allowNull: false },
+  totalItems: { type: DataTypes.INTEGER, allowNull: false }
+});
+
+const User = sequelize.define('User', {
+  id: { type: DataTypes.STRING, primaryKey: true },
+  name: { type: DataTypes.STRING, allowNull: false },
+  email: { type: DataTypes.STRING, allowNull: false, unique: true },
+  password: { type: DataTypes.STRING, allowNull: false },
+  role: { type: DataTypes.ENUM('ADMIN', 'STAFF'), defaultValue: 'STAFF' },
+  status: { type: DataTypes.ENUM('ACTIVE', 'INACTIVE'), defaultValue: 'ACTIVE' },
+  lastActive: { type: DataTypes.STRING, defaultValue: 'Never' }
+}, {
+  hooks: {
+    beforeCreate: async (user) => {
+      if (user.password) {
+        const salt = await bcrypt.genSalt(10);
+        user.password = await bcrypt.hash(user.password, salt);
+      }
+    },
+    beforeUpdate: async (user) => {
+      if (user.changed('password')) {
+        const salt = await bcrypt.genSalt(10);
+        user.password = await bcrypt.hash(user.password, salt);
+      }
+    }
+  }
+});
+
+User.prototype.validatePassword = async function(password) {
+  return await bcrypt.compare(password, this.password);
+};
+
+// Ekspor model agar bisa dipakai setupDB.js
+module.exports = { sequelize, Inventory, Transaction, RejectMaster, RejectRecord, User };
+
+// --- 3. EXPRESS APP SETUP ---
 const app = express();
 const JWT_SECRET = process.env.JWT_SECRET || 'neonflow_secret';
 
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
-// Verifikasi koneksi ke database saat startup
-sequelize.authenticate()
-  .then(() => console.log('⚡ MySQL Database Connected'))
-  .catch(err => console.error('❌ Database Connection Error:', err));
+// --- 4. API ROUTES ---
 
 // AUTH
 app.post('/api/auth/login', async (req, res) => {
@@ -32,7 +114,7 @@ app.post('/api/auth/login', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// SYSTEM RESET (Hanya untuk debugging)
+// SYSTEM RESET
 app.post('/api/system/reset', async (req, res) => {
   try {
     await sequelize.sync({ force: true });
@@ -82,5 +164,14 @@ app.delete('/api/users/:id', async (req, res) => {
     res.json({ success: true });
 });
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`🚀 NeonFlow Server on port ${PORT}`));
+// --- 5. SERVER INITIALIZATION ---
+// Hanya jalankan app.listen jika file ini dijalankan langsung (bukan di-require)
+if (require.main === module) {
+  sequelize.authenticate()
+    .then(() => {
+      console.log('⚡ MySQL Database Connected');
+      const PORT = process.env.PORT || 3000;
+      app.listen(PORT, () => console.log(`🚀 NeonFlow Server on port ${PORT}`));
+    })
+    .catch(err => console.error('❌ Database Connection Error:', err));
+}
