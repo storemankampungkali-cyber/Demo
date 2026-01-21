@@ -32,14 +32,13 @@ const App: React.FC = () => {
   const [currentVideoId, setCurrentVideoId] = useState<string | null>(null);
 
   const fetchData = async () => {
-      setIsLoading(true);
       try {
           const [invData, histData, rejMaster, rejHist, usrData] = await Promise.all([
-              api.getInventory(),
-              api.getHistory(),
-              api.getRejectMaster(),
-              api.getRejectHistory(),
-              api.getUsers()
+              api.getInventory().catch(() => []),
+              api.getHistory().catch(() => []),
+              api.getRejectMaster().catch(() => []),
+              api.getRejectHistory().catch(() => []),
+              api.getUsers().catch(() => [])
           ]);
 
           setItems(invData.length > 0 ? invData : INITIAL_INVENTORY);
@@ -49,10 +48,7 @@ const App: React.FC = () => {
           setUsers(usrData.length > 0 ? usrData : SAMPLE_USERS);
 
       } catch (error) {
-          console.error("Failed to connect to backend", error);
-          if (isAuthenticated) {
-            toast.error("Backend Connection Failed. Using Offline Mode.", "Network Error");
-          }
+          console.error("Data Fetch Error", error);
           setItems(INITIAL_INVENTORY);
           setHistory(SAMPLE_HISTORY);
           setRejectMasterData(SAMPLE_REJECT_MASTER_DATA);
@@ -72,7 +68,7 @@ const App: React.FC = () => {
             setCurrentUser(authData.user);
         }
     } catch (e) {
-        console.warn("Storage access restricted", e);
+        console.warn("Storage restricted or empty");
     } finally {
         setIsLoading(false);
     }
@@ -104,12 +100,12 @@ const App: React.FC = () => {
   const handleTransactionComplete = async (record: TransactionRecord) => {
     try {
         await api.createTransaction(record);
-        toast.success("Transaction recorded & Stock updated in DB", "Success");
+        toast.success("Transaction recorded", "Success");
         const [newInv, newHist] = await Promise.all([api.getInventory(), api.getHistory()]);
         setItems(newInv);
         setHistory(newHist);
     } catch (error: any) {
-        toast.error(error.message || "Failed to save transaction", "Database Error");
+        toast.error(error.message || "Failed to sync transaction");
     }
   };
 
@@ -118,9 +114,9 @@ const App: React.FC = () => {
           await api.addInventoryBulk(newItems);
           const updated = await api.getInventory();
           setItems(updated);
-          toast.success(`Imported ${newItems.length} items to Database`, "Import Successful");
+          toast.success(`Imported ${newItems.length} items`);
       } catch (error: any) {
-          toast.error(error.message, "Import Failed");
+          toast.error("Import failed");
       }
   };
 
@@ -128,9 +124,9 @@ const App: React.FC = () => {
     try {
         await api.updateTransaction(originalRecord.id, newRecord);
         setHistory(prev => prev.map(rec => rec.id === originalRecord.id ? newRecord : rec));
-        toast.success("Transaction Record Updated", "Sync Complete");
+        toast.success("Record updated");
     } catch (error: any) {
-        toast.error(error.message, "Update Failed");
+        toast.error("Update failed");
     }
   };
 
@@ -138,9 +134,9 @@ const App: React.FC = () => {
     try {
         await api.deleteTransaction(id);
         setHistory(prev => prev.filter(rec => rec.id !== id));
-        toast.info("Transaction log deleted from DB.", "Record Deleted");
+        toast.info("Record deleted");
     } catch (error: any) {
-        toast.error(error.message, "Delete Failed");
+        toast.error("Delete failed");
     }
   };
 
@@ -148,9 +144,9 @@ const App: React.FC = () => {
       try {
           await api.createRejectRecord(record);
           setRejectHistory(prev => [record, ...prev]);
-          toast.success("Reject record saved to DB");
+          toast.success("Reject record saved");
       } catch (e: any) {
-          toast.error(e.message, "Save Failed");
+          toast.error("Save failed");
       }
   };
 
@@ -159,9 +155,9 @@ const App: React.FC = () => {
           await api.addRejectMasterBulk(newMasterItems);
           const updated = await api.getRejectMaster();
           setRejectMasterData(updated);
-          toast.success(`Imported ${newMasterItems.length} items to Reject DB`, "Database Updated");
+          toast.success("Reject DB updated");
       } catch (e: any) {
-          toast.error(e.message, "Import Failed");
+          toast.error("Import failed");
       }
   };
 
@@ -169,7 +165,7 @@ const App: React.FC = () => {
     try {
         await api.createUser(newUser);
         setUsers(prev => [...prev, newUser]);
-        toast.success(`User ${newUser.name} created`, "User Added");
+        toast.success(`User ${newUser.name} created`);
     } catch (e: any) { toast.error(e.message); }
   };
 
@@ -177,20 +173,20 @@ const App: React.FC = () => {
     try {
         await api.updateUser(updatedUser);
         setUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
-        toast.success("User profile updated", "Changes Saved");
+        toast.success("User profile updated");
     } catch (e: any) { toast.error(e.message); }
   };
 
   const handleDeleteUser = async (userId: string) => {
     if (userId === 'usr-1') {
-      toast.error("Cannot delete the Super Admin account.", "Action Denied");
+      toast.error("Cannot delete root admin");
       return;
     }
-    if (window.confirm("Are you sure you want to delete this user? Access will be revoked immediately.")) {
+    if (window.confirm("Delete user access?")) {
         try {
             await api.deleteUser(userId);
             setUsers(prev => prev.filter(u => u.id !== userId));
-            toast.success("User removed from system", "User Deleted");
+            toast.success("User removed");
         } catch (e: any) { toast.error(e.message); }
     }
   };
@@ -208,15 +204,10 @@ const App: React.FC = () => {
               videoId: videoId
           };
           setPlaylist(prev => [...prev, newItem]);
-          toast.success("Video added to playlist", "Added");
+          toast.success("Added to playlist");
       } else {
-          toast.warning("Please enter a valid YouTube URL", "Invalid Link");
+          toast.warning("Invalid YouTube URL");
       }
-  };
-
-  const handleRemoveFromPlaylist = (id: string) => {
-      setPlaylist(prev => prev.filter(p => p.id !== id));
-      toast.info("Removed from playlist");
   };
 
   const renderContent = () => {
@@ -235,7 +226,7 @@ const App: React.FC = () => {
 
     switch (currentView) {
       case AppView.DASHBOARD:
-        return <Dashboard items={items} playlist={playlist} onAddToPlaylist={handleAddToPlaylist} onRemoveFromPlaylist={handleRemoveFromPlaylist} onPlayVideo={setCurrentVideoId} currentVideoId={currentVideoId} />;
+        return <Dashboard items={items} playlist={playlist} onAddToPlaylist={handleAddToPlaylist} onRemoveFromPlaylist={(id) => setPlaylist(p => p.filter(x => x.id !== id))} onPlayVideo={setCurrentVideoId} currentVideoId={currentVideoId} />;
       case AppView.INVENTORY:
         return <InventoryList items={items} history={history} onAddItems={handleAddInventoryItems} />;
       case AppView.TRANSACTION:
@@ -249,7 +240,7 @@ const App: React.FC = () => {
       case AppView.SETTINGS:
         return <SettingsModule users={users} onAddUser={handleAddUser} onUpdateUser={handleUpdateUser} onDeleteUser={handleDeleteUser} />;
       default:
-        return <Dashboard items={items} playlist={playlist} onAddToPlaylist={handleAddToPlaylist} onRemoveFromPlaylist={handleRemoveFromPlaylist} onPlayVideo={setCurrentVideoId} currentVideoId={currentVideoId} />;
+        return <Dashboard items={items} playlist={playlist} onAddToPlaylist={handleAddToPlaylist} onRemoveFromPlaylist={(id) => setPlaylist(p => p.filter(x => x.id !== id))} onPlayVideo={setCurrentVideoId} currentVideoId={currentVideoId} />;
     }
   };
 
