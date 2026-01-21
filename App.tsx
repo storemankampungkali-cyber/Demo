@@ -1,45 +1,36 @@
 
 import React, { useState, useEffect } from 'react';
-import Sidebar from './components/Sidebar';
-import Dashboard from './components/Dashboard';
-import InventoryList from './components/InventoryList';
-import AIInsights from './components/AIInsights';
-import TransactionModule from './components/TransactionModule';
-import HistoryModule from './components/HistoryModule';
-import RejectModule from './components/RejectModule';
-import SettingsModule from './components/SettingsModule';
-import MediaPlayer from './components/MediaPlayer';
-import Login from './components/Login';
-import { InventoryItem, AppView, TransactionRecord, RejectRecord, RejectMasterItem, User, PlaylistItem, AuthResponse } from './types';
-import { SAMPLE_PLAYLIST, INITIAL_INVENTORY, SAMPLE_HISTORY, SAMPLE_REJECT_MASTER_DATA, SAMPLE_REJECT_HISTORY, SAMPLE_USERS } from './data';
-import { useToast } from './components/ToastSystem';
-import { api } from './services/api';
+import Sidebar from './components/Sidebar.tsx';
+import Dashboard from './components/Dashboard.tsx';
+import InventoryList from './components/InventoryList.tsx';
+import AIInsights from './components/AIInsights.tsx';
+import TransactionModule from './components/TransactionModule.tsx';
+import HistoryModule from './components/HistoryModule.tsx';
+import RejectModule from './components/RejectModule.tsx';
+import SettingsModule from './components/SettingsModule.tsx';
+import MediaPlayer from './components/MediaPlayer.tsx';
+import Login from './components/Login.tsx';
+import { InventoryItem, AppView, TransactionRecord, RejectRecord, RejectMasterItem, User, PlaylistItem, AuthResponse } from './types.ts';
+import { SAMPLE_PLAYLIST, INITIAL_INVENTORY, SAMPLE_HISTORY, SAMPLE_REJECT_MASTER_DATA, SAMPLE_REJECT_HISTORY, SAMPLE_USERS } from './data.ts';
+import { useToast } from './components/ToastSystem.tsx';
+import { api } from './services/api.ts';
 
 const App: React.FC = () => {
   const { toast } = useToast();
   const [currentView, setCurrentView] = useState<AppView>(AppView.DASHBOARD);
   const [isLoading, setIsLoading] = useState(true);
   
-  // --- AUTH STATE ---
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState<AuthResponse['user'] | null>(null);
 
-  // 1. Main Inventory Data
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [history, setHistory] = useState<TransactionRecord[]>([]);
-  
-  // 2. ISOLATED Reject Data
   const [rejectMasterData, setRejectMasterData] = useState<RejectMasterItem[]>([]);
   const [rejectHistory, setRejectHistory] = useState<RejectRecord[]>([]);
-
-  // 3. User Management Data
   const [users, setUsers] = useState<User[]>([]);
-
-  // 4. Media Player State (Global)
   const [playlist, setPlaylist] = useState<PlaylistItem[]>(SAMPLE_PLAYLIST);
   const [currentVideoId, setCurrentVideoId] = useState<string | null>(null);
 
-  // --- INITIAL DATA FETCHING ---
   const fetchData = async () => {
       setIsLoading(true);
       try {
@@ -272,19 +263,14 @@ const App: React.FC = () => {
           userName={currentUser?.name}
         />
       )}
-      
-      {/* Main Content dengan Z-Index Tinggi */}
       <main className={`relative z-10 flex-1 ${isAuthenticated ? 'lg:ml-64 p-4 lg:p-8' : 'w-full'} transition-all duration-300`}>
         <div className="max-w-7xl mx-auto mt-16 lg:mt-0">
           {renderContent()}
         </div>
       </main>
-
       {isAuthenticated && (
         <MediaPlayer videoId={currentVideoId} playlist={playlist} onPlay={setCurrentVideoId} onClose={() => setCurrentVideoId(null)} />
       )}
-
-      {/* Background ambient effects dengan Z-Index sangat rendah */}
       <div className="fixed top-0 left-0 w-full h-full pointer-events-none z-0 overflow-hidden">
         <div className="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] bg-purple-900/10 rounded-full blur-[120px]" />
         <div className="absolute bottom-[-10%] left-[-10%] w-[500px] h-[500px] bg-teal-900/10 rounded-full blur-[120px]" />
