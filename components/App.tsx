@@ -1,19 +1,19 @@
 
 import React, { useState, useEffect } from 'react';
-import Sidebar from './components/Sidebar';
-import Dashboard from './components/Dashboard';
-import InventoryList from './components/InventoryList';
-import AIInsights from './components/AIInsights';
-import TransactionModule from './components/TransactionModule';
-import HistoryModule from './components/HistoryModule';
-import RejectModule from './components/RejectModule';
-import SettingsModule from './components/SettingsModule';
-import MediaPlayer from './components/MediaPlayer';
-import Login from './components/Login';
-import { InventoryItem, AppView, TransactionRecord, RejectRecord, RejectMasterItem, User, PlaylistItem, AuthResponse } from './types';
-import { SAMPLE_PLAYLIST, INITIAL_INVENTORY, SAMPLE_HISTORY, SAMPLE_REJECT_MASTER_DATA, SAMPLE_REJECT_HISTORY, SAMPLE_USERS } from './data';
-import { useToast } from './components/ToastSystem';
-import { api } from './services/api';
+import Sidebar from './Sidebar';
+import Dashboard from './Dashboard';
+import InventoryList from './InventoryList';
+import AIInsights from './AIInsights';
+import TransactionModule from './TransactionModule';
+import HistoryModule from './HistoryModule';
+import RejectModule from './RejectModule';
+import SettingsModule from './SettingsModule';
+import MediaPlayer from './MediaPlayer';
+import Login from './Login';
+import { InventoryItem, AppView, TransactionRecord, RejectRecord, RejectMasterItem, User, PlaylistItem, AuthResponse } from '../types';
+import { SAMPLE_PLAYLIST, INITIAL_INVENTORY, SAMPLE_HISTORY, SAMPLE_REJECT_MASTER_DATA, SAMPLE_REJECT_HISTORY, SAMPLE_USERS } from '../data';
+import { useToast } from './ToastSystem';
+import { api } from '../services/api';
 
 const App: React.FC = () => {
   const { toast } = useToast();
