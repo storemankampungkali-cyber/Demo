@@ -1,13 +1,20 @@
 
+require('dotenv').config();
 const { Sequelize, DataTypes } = require('sequelize');
 const bcrypt = require('bcryptjs');
 
-const sequelize = new Sequelize('neonflow_inventory', 'dudung', 'Lokasiku123.', {
-  host: '127.0.0.1',
-  dialect: 'mysql',
-  logging: false,
-  define: { timestamps: false }
-});
+// Menggunakan environment variables dari .env (fallback ke hardcoded jika perlu untuk emergency)
+const sequelize = new Sequelize(
+  process.env.DB_NAME || 'neonflow_inventory', 
+  process.env.DB_USER || 'dudung', 
+  process.env.DB_PASS || 'Lokasiku123.', 
+  {
+    host: process.env.DB_HOST || '127.0.0.1',
+    dialect: 'mysql',
+    logging: false,
+    define: { timestamps: false }
+  }
+);
 
 const Inventory = sequelize.define('Inventory', {
   id: { type: DataTypes.STRING, primaryKey: true },
@@ -72,7 +79,6 @@ const User = sequelize.define('User', {
   }
 });
 
-// Instance method to check password
 User.prototype.validatePassword = async function(password) {
   return await bcrypt.compare(password, this.password);
 };
