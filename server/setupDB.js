@@ -2,12 +2,15 @@
 const { Sequelize, DataTypes } = require('sequelize');
 const bcrypt = require('bcryptjs');
 
+// Database Connection
 const sequelize = new Sequelize('neonflow_inventory', 'dudung', 'Lokasiku123.', {
   host: '127.0.0.1',
   dialect: 'mysql',
   logging: false,
   define: { timestamps: false }
 });
+
+// --- MODEL DEFINITIONS ---
 
 const Inventory = sequelize.define('Inventory', {
   id: { type: DataTypes.STRING, primaryKey: true },
@@ -77,4 +80,44 @@ User.prototype.validatePassword = async function(password) {
   return await bcrypt.compare(password, this.password);
 };
 
+// --- STANDALONE SETUP FUNCTION ---
+// Runs when file is executed directly: node setupDB.js
+const initDB = async () => {
+    try {
+        console.log('🚀 INITIALIZING NEONFLOW DATABASE...');
+        
+        // Sync models to database (DROPS EXISTING TABLES)
+        await sequelize.sync({ force: true });
+        console.log('✅ Tables created successfully.');
+
+        // Seed default Admin as requested: admin / 22
+        await User.create({
+            id: 'usr-admin-01',
+            name: 'Super Admin',
+            email: 'admin', // Using 'admin' as the identifier
+            password: '22',  // Hashed by hooks
+            role: 'ADMIN',
+            status: 'ACTIVE',
+            lastActive: 'System Initialized'
+        });
+
+        console.log('✅ Default Super Admin created.');
+        console.log('--- LOGIN CREDENTIALS ---');
+        console.log('Username: admin');
+        console.log('Password: 22');
+        console.log('-------------------------');
+        
+        process.exit(0);
+    } catch (error) {
+        console.error('❌ Database Initialization Failed:', error);
+        process.exit(1);
+    }
+};
+
+// Export for app usage
 module.exports = { sequelize, Inventory, Transaction, RejectMaster, RejectRecord, User };
+
+// Execute if run via command line
+if (require.main === module) {
+    initDB();
+}

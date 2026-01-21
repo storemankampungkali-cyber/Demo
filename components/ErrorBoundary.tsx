@@ -1,8 +1,10 @@
+
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw, Terminal } from 'lucide-react';
 
 interface Props {
-  children: ReactNode;
+  // Use optional children to prevent "missing children" errors in JSX instantiations
+  children?: ReactNode;
 }
 
 interface State {
@@ -11,18 +13,25 @@ interface State {
   errorInfo: ErrorInfo | null;
 }
 
+// Fixed inheritance by using Component directly to ensure state and props are recognized by the compiler
 class ErrorBoundary extends Component<Props, State> {
-  public state: State = {
-    hasError: false,
-    error: null,
-    errorInfo: null
-  };
+  constructor(props: Props) {
+    super(props);
+    // Properly initialize state on the class instance
+    this.state = {
+      hasError: false,
+      error: null,
+      errorInfo: null
+    };
+  }
 
   public static getDerivedStateFromError(error: Error): State {
+    // Update state so the next render will show the fallback UI.
     return { hasError: true, error, errorInfo: null };
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    // Log the error and update state with error info for debugging display
     console.error("Uncaught error:", error, errorInfo);
     this.setState({ errorInfo });
   }
@@ -33,6 +42,7 @@ class ErrorBoundary extends Component<Props, State> {
 
   public render() {
     if (this.state.hasError) {
+      // Custom fallback UI for system failures
       return (
         <div className="min-h-screen bg-[#05070a] flex items-center justify-center p-6 font-mono selection:bg-red-500/30">
           <div className="max-w-2xl w-full bg-dark-card border border-red-900/50 rounded-2xl p-8 shadow-[0_0_50px_rgba(220,38,38,0.1)] relative overflow-hidden">
@@ -71,7 +81,7 @@ class ErrorBoundary extends Component<Props, State> {
             <div className="flex gap-4">
               <button 
                 onClick={this.handleReload}
-                className="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold py-3 px-6 rounded-xl flex items-center justify-center gap-2 transition-all shadow-[0_0_20px_rgba(220,38,38,0.4)] hover:shadow-[0_0_30px_rgba(220,38,38,0.6)]"
+                className="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold py-3 px-6 rounded-xl flex items-center justify-center gap-2 transition-all shadow-[0_0_20px_rgba(220,38,38,0.4)] hover:shadow-[0_0_30_rgba(220,38,38,0.6)]"
               >
                 <RefreshCw className="w-5 h-5" />
                 REBOOT SYSTEM
@@ -89,6 +99,7 @@ class ErrorBoundary extends Component<Props, State> {
       );
     }
 
+    // Return children normally if no error occurred
     return this.props.children;
   }
 }

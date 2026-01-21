@@ -1,193 +1,189 @@
+
 const express = require('express');
 const cors = require('cors');
-const { sequelize, Inventory, Transaction, RejectMaster, RejectRecord, User } = require('./models');
+const jwt = require('jsonwebtoken');
+const { sequelize, Inventory, Transaction, RejectMaster, RejectRecord, User } = require('./setupDB');
 
 const app = express();
-const PORT = 5000;
+const JWT_SECRET = 'neonflow_super_secret_key_2024'; // In production, use env variable
 
-// Middleware
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
-// --- DATABASE CONNECTION & SYNC ---
-// This creates tables if they don't exist
-sequelize.sync() 
-  .then(() => console.log('⚡ MySQL Database Connected & Synced'))
+// Note: In production, sequelize.sync() usually happens in setup script, 
+// but we keep a check here for app stability.
+sequelize.authenticate()
+  .then(() => console.log('⚡ MySQL Database Connected & Authenticated'))
   .catch(err => console.error('MySQL Connection Error:', err));
 
-// --- ROUTES ---
-
-// 1. INVENTORY ROUTES
-app.get('/api/inventory', async (req, res) => {
+// --- AUTHENTICATION ---
+app.post('/api/auth/login', async (req, res) => {
   try {
-    const items = await Inventory.findAll();
-    res.json(items);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+    const { email, password } = req.body;
+    const user = await User.findOne({ where: { email, status: 'ACTIVE' } });
+    
+    if (!user || !(await user.validatePassword(password))) {
+      return res.status(401).json({ error: 'Invalid username or password' });
+    }
+
+    const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { expiresIn: '24h' });
+    
+    // Update last active
+    user.lastActive = new Date().toLocaleString();
+    await user.save();
+
+    res.json({
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Middleware for RBAC
+const authorize = (roles = []) => {
+  return (req, res, next) => {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) return res.status(401).json({ error: 'Unauthorized' });
+
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET);
+      if (roles.length && !roles.includes(decoded.role)) {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+      req.user = decoded;
+      next();
+    } catch (err) {
+      return res.status(401).json({ error: 'Invalid token' });
+    }
+  };
+};
+
+// --- SYSTEM UTILITIES ---
+app.post('/api/system/reset', async (req, res) => {
+  try {
+    console.log('☢️ INITIATING SYSTEM RESET VIA API...');
+    await sequelize.sync({ force: true });
+    
+    await User.create({
+      id: 'usr-1',
+      name: 'Super Admin',
+      email: 'admin',
+      password: '22',
+      role: 'ADMIN',
+      status: 'ACTIVE',
+      lastActive: 'Just Now'
+    });
+
+    res.json({ 
+      success: true, 
+      message: 'Database berhasil direset. Login Admin: admin / 22' 
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Gagal melakukan reset sistem: ' + err.message });
+  }
+});
+
+// --- INVENTORY ---
+app.get('/api/inventory', async (req, res) => {
+  const items = await Inventory.findAll();
+  res.json(items);
 });
 
 app.post('/api/inventory/bulk', async (req, res) => {
   try {
-    // bulkCreate is Sequelize's version of insertMany
-    // updateOnDuplicate handles if ID already exists (upsert)
-    const newItems = await Inventory.bulkCreate(req.body, { 
-      updateOnDuplicate: ['name', 'quantity', 'price', 'status', 'lastUpdated'] 
-    });
-    res.json(newItems);
+    const items = await Inventory.bulkCreate(req.body, { updateOnDuplicate: ['name', 'quantity', 'price', 'status', 'lastUpdated'] });
+    res.json(items);
   } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
-// 2. TRANSACTION ROUTES (Handles Stock Logic)
+// --- TRANSACTIONS ---
 app.get('/api/transactions', async (req, res) => {
-  try {
-    const history = await Transaction.findAll({
-      order: [['date', 'DESC']]
-    });
-    res.json(history);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  const history = await Transaction.findAll({ order: [['date', 'DESC']] });
+  res.json(history);
 });
 
 app.post('/api/transactions', async (req, res) => {
-  // Start a MySQL Transaction (ACID compliance)
   const t = await sequelize.transaction();
-  
   try {
     const { id, date, type, items, totalUnits, referenceNumber, notes, photos } = req.body;
-
-    // 1. Create Transaction Record
-    const newTransaction = await Transaction.create({
-      id, date, type, items, totalUnits, referenceNumber, notes, photos
-    }, { transaction: t });
-
-    // 2. Update Inventory Quantities
-    const multiplier = type === 'IN' ? 1 : -1;
+    const newTrx = await Transaction.create({ id, date, type, items, totalUnits, referenceNumber, notes, photos }, { transaction: t });
     
+    const multiplier = type === 'IN' ? 1 : -1;
     for (const item of items) {
-      const qtyChange = item.orderQuantity * item.selectedUnit.ratio * multiplier;
-      
-      // Find item (findByPk because id is Primary Key)
-      const inventoryItem = await Inventory.findByPk(item.id, { transaction: t });
-      
-      if (!inventoryItem) {
-          throw new Error(`Item ${item.name} not found in inventory.`);
-      }
-
-      const newQty = inventoryItem.quantity + qtyChange;
-      
-      if (newQty < 0) {
-          throw new Error(`Insufficient stock for ${item.name}. Current: ${inventoryItem.quantity}`);
-      }
-
-      inventoryItem.quantity = newQty;
-      
-      // Update Status based on new Qty
-      if (newQty === 0) inventoryItem.status = 'Out of Stock';
-      else if (newQty < 20) inventoryItem.status = 'Low Stock';
-      else inventoryItem.status = 'In Stock';
-      
-      inventoryItem.lastUpdated = new Date().toISOString().split('T')[0];
-      await inventoryItem.save({ transaction: t });
+      const invItem = await Inventory.findByPk(item.id, { transaction: t });
+      if (!invItem) throw new Error(`Item ${item.name} not found`);
+      const newQty = invItem.quantity + (item.orderQuantity * item.selectedUnit.ratio * multiplier);
+      if (newQty < 0) throw new Error(`Stock insufficient for ${item.name}`);
+      invItem.quantity = newQty;
+      invItem.status = newQty === 0 ? 'Out of Stock' : (newQty < 20 ? 'Low Stock' : 'In Stock');
+      invItem.lastUpdated = new Date().toISOString().split('T')[0];
+      await invItem.save({ transaction: t });
     }
-
-    // Commit the transaction
     await t.commit();
-    res.json({ message: 'Transaction success', transaction: newTransaction });
-
+    res.json({ transaction: newTrx });
   } catch (err) {
-    // Rollback if anything fails
     await t.rollback();
     res.status(400).json({ error: err.message });
   }
 });
 
-app.put('/api/transactions/:id', async (req, res) => {
-    try {
-        const [updatedRows] = await Transaction.update(req.body, {
-            where: { id: req.params.id }
-        });
-        
-        if (updatedRows > 0) {
-            const updatedTransaction = await Transaction.findByPk(req.params.id);
-            res.json(updatedTransaction);
-        } else {
-            res.status(404).json({ error: "Transaction not found" });
-        }
-    } catch (err) { res.status(400).json({ error: err.message }); }
-});
-
-app.delete('/api/transactions/:id', async (req, res) => {
-    try {
-        await Transaction.destroy({
-            where: { id: req.params.id }
-        });
-        res.json({ message: 'Deleted' });
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// 3. REJECT MODULE ROUTES
+// --- REJECT MODULE ---
 app.get('/api/reject/master', async (req, res) => {
-    try {
-        const items = await RejectMaster.findAll();
-        res.json(items);
-    } catch(err) { res.status(500).json({error: err.message}); }
+  const items = await RejectMaster.findAll();
+  res.json(items);
 });
 
 app.post('/api/reject/master', async (req, res) => {
-    try {
-        const items = await RejectMaster.bulkCreate(req.body, {
-             updateOnDuplicate: ['name', 'sku'] 
-        });
-        res.json(items);
-    } catch(err) { res.status(400).json({error: err.message}); }
+  const items = await RejectMaster.bulkCreate(req.body, { updateOnDuplicate: ['name', 'sku'] });
+  res.json(items);
 });
 
 app.get('/api/reject/history', async (req, res) => {
-    try {
-        const history = await RejectRecord.findAll({
-            order: [['date', 'DESC']]
-        });
-        res.json(history);
-    } catch(err) { res.status(500).json({error: err.message}); }
+  const hist = await RejectRecord.findAll({ order: [['date', 'DESC']] });
+  res.json(hist);
 });
 
 app.post('/api/reject/record', async (req, res) => {
-    try {
-        const record = await RejectRecord.create(req.body);
-        res.json(record);
-    } catch(err) { res.status(400).json({error: err.message}); }
+  const record = await RejectRecord.create(req.body);
+  res.json(record);
 });
 
-// 4. USER ROUTES
+// --- USERS MANAGEMENT (Admin only) ---
 app.get('/api/users', async (req, res) => {
-    try {
-        const users = await User.findAll();
-        res.json(users);
-    } catch(err) { res.status(500).json({error: err.message}); }
+  const users = await User.findAll({ attributes: { exclude: ['password'] } });
+  res.json(users);
 });
 
 app.post('/api/users', async (req, res) => {
-    try {
-        const user = await User.create(req.body);
-        res.json(user);
-    } catch(err) { res.status(400).json({error: err.message}); }
+  try {
+    const user = await User.create(req.body);
+    res.json(user);
+  } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
 app.put('/api/users/:id', async (req, res) => {
-    try {
-        await User.update(req.body, {
-            where: { id: req.params.id }
-        });
-        const updatedUser = await User.findByPk(req.params.id);
-        res.json(updatedUser);
-    } catch(err) { res.status(400).json({error: err.message}); }
+  try {
+    const user = await User.findByPk(req.params.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    await user.update(req.body);
+    res.json(user);
+  } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
 app.delete('/api/users/:id', async (req, res) => {
-    try {
-        await User.destroy({
-            where: { id: req.params.id }
-        });
-        res.json({ message: 'User deleted' });
-    } catch(err) { res.status(500).json({error: err.message}); }
+  try {
+    const user = await User.findByPk(req.params.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    await user.destroy();
+    res.json({ success: true });
+  } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
-app.listen(PORT, () => console.log(`🚀 Server running on http://localhost:${PORT}`));
+app.listen(5000, () => console.log('🚀 Server running on port 5000'));

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
@@ -8,8 +9,9 @@ import HistoryModule from './components/HistoryModule';
 import RejectModule from './components/RejectModule';
 import SettingsModule from './components/SettingsModule';
 import MediaPlayer from './components/MediaPlayer';
-import { InventoryItem, AppView, TransactionRecord, RejectRecord, RejectMasterItem, User, PlaylistItem } from './types';
-import { SAMPLE_PLAYLIST, INITIAL_INVENTORY, SAMPLE_HISTORY, SAMPLE_REJECT_MASTER_DATA, SAMPLE_REJECT_HISTORY, SAMPLE_USERS } from './data'; // Keep as fallback
+import Login from './components/Login';
+import { InventoryItem, AppView, TransactionRecord, RejectRecord, RejectMasterItem, User, PlaylistItem, AuthResponse } from './types';
+import { SAMPLE_PLAYLIST, INITIAL_INVENTORY, SAMPLE_HISTORY, SAMPLE_REJECT_MASTER_DATA, SAMPLE_REJECT_HISTORY, SAMPLE_USERS } from './data';
 import { useToast } from './components/ToastSystem';
 import { api } from './services/api';
 
@@ -18,6 +20,10 @@ const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<AppView>(AppView.DASHBOARD);
   const [isLoading, setIsLoading] = useState(true);
   
+  // --- AUTH STATE ---
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [currentUser, setCurrentUser] = useState<AuthResponse['user'] | null>(null);
+
   // 1. Main Inventory Data
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [history, setHistory] = useState<TransactionRecord[]>([]);
@@ -46,17 +52,19 @@ const App: React.FC = () => {
               api.getUsers()
           ]);
 
-          // Use DB data if available, otherwise fallback to mock (for demo purposes)
+          // Use DB data if available, otherwise fallback to mock
           setItems(invData.length > 0 ? invData : INITIAL_INVENTORY);
           setHistory(histData.length > 0 ? histData : SAMPLE_HISTORY);
           setRejectMasterData(rejMaster.length > 0 ? rejMaster : SAMPLE_REJECT_MASTER_DATA);
           setRejectHistory(rejHist.length > 0 ? rejHist : SAMPLE_REJECT_HISTORY);
           setUsers(usrData.length > 0 ? usrData : SAMPLE_USERS);
 
-          if (invData.length === 0) toast.info("Connected to DB, but it's empty. Loaded sample data.");
       } catch (error) {
           console.error("Failed to connect to backend", error);
-          toast.error("Backend Connection Failed. Using Offline Mode.", "Network Error");
+          // Only show error toast if authenticated (avoiding login page spam)
+          if (isAuthenticated) {
+            toast.error("Backend Connection Failed. Using Offline Mode.", "Network Error");
+          }
           // Fallback
           setItems(INITIAL_INVENTORY);
           setHistory(SAMPLE_HISTORY);
@@ -68,16 +76,41 @@ const App: React.FC = () => {
       }
   };
 
+  // Check for existing session
   useEffect(() => {
-      fetchData();
+    const savedAuth = localStorage.getItem('neonflow_auth');
+    if (savedAuth) {
+      const authData = JSON.parse(savedAuth) as AuthResponse;
+      setIsAuthenticated(true);
+      setCurrentUser(authData.user);
+    }
+    setIsLoading(false);
   }, []);
+
+  useEffect(() => {
+      if (isAuthenticated) {
+        fetchData();
+      }
+  }, [isAuthenticated]);
+
+  const handleLoginSuccess = (authData: AuthResponse) => {
+    localStorage.setItem('neonflow_auth', JSON.stringify(authData));
+    setCurrentUser(authData.user);
+    setIsAuthenticated(true);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('neonflow_auth');
+    setIsAuthenticated(false);
+    setCurrentUser(null);
+    toast.info("Session terminated", "Logged Out");
+  };
 
   // --- Main Inventory Handlers ---
   const handleTransactionComplete = async (record: TransactionRecord) => {
     try {
         await api.createTransaction(record);
         toast.success("Transaction recorded & Stock updated in DB", "Success");
-        // Re-fetch to ensure sync
         const [newInv, newHist] = await Promise.all([api.getInventory(), api.getHistory()]);
         setItems(newInv);
         setHistory(newHist);
@@ -98,14 +131,10 @@ const App: React.FC = () => {
   };
 
   const handleEditTransaction = async (originalRecord: TransactionRecord, newRecord: TransactionRecord) => {
-    // Note: Backend endpoint for full logic not fully implemented in this demo, 
-    // assuming optimistic UI update or simple PUT
     try {
         await api.updateTransaction(originalRecord.id, newRecord);
-        // Simple state update for now
         setHistory(prev => prev.map(rec => rec.id === originalRecord.id ? newRecord : rec));
         toast.success("Transaction Record Updated", "Sync Complete");
-        // Ideal: Re-fetch inventory to check consistency
     } catch (error: any) {
         toast.error(error.message, "Update Failed");
     }
@@ -121,7 +150,6 @@ const App: React.FC = () => {
     }
   };
 
-  // --- Reject Module Handlers (Independent) ---
   const handleRejectComplete = async (record: RejectRecord) => {
       try {
           await api.createRejectRecord(record);
@@ -143,7 +171,6 @@ const App: React.FC = () => {
       }
   };
 
-  // --- User Management Handlers ---
   const handleAddUser = async (newUser: User) => {
     try {
         await api.createUser(newUser);
@@ -186,7 +213,7 @@ const App: React.FC = () => {
       if (videoId) {
           const newItem: PlaylistItem = {
               id: `pl-${Date.now()}`,
-              title: `Video ${videoId}`, // In a real app, use API to fetch title
+              title: `Video ${videoId}`, 
               url: url,
               videoId: videoId
           };
@@ -211,6 +238,10 @@ const App: React.FC = () => {
                 <p className="text-xs text-slate-500 mt-2">Checking database status</p>
             </div>
         );
+    }
+
+    if (!isAuthenticated) {
+      return <Login onLoginSuccess={handleLoginSuccess} />;
     }
 
     switch (currentView) {
@@ -278,21 +309,29 @@ const App: React.FC = () => {
 
   return (
     <div className="flex min-h-screen bg-dark-bg text-slate-200 font-sans selection:bg-neon-teal selection:text-black">
-      <Sidebar currentView={currentView} onChangeView={setCurrentView} />
+      {isAuthenticated && (
+        <Sidebar 
+          currentView={currentView} 
+          onChangeView={setCurrentView} 
+          onLogout={handleLogout}
+          userName={currentUser?.name}
+        />
+      )}
       
-      <main className="flex-1 lg:ml-64 p-4 lg:p-8 transition-all duration-300">
+      <main className={`flex-1 ${isAuthenticated ? 'lg:ml-64 p-4 lg:p-8' : ''} transition-all duration-300`}>
         <div className="max-w-7xl mx-auto mt-16 lg:mt-0">
           {renderContent()}
         </div>
       </main>
 
-      {/* Persistent Media Player */}
-      <MediaPlayer 
-        videoId={currentVideoId} 
-        playlist={playlist}
-        onPlay={setCurrentVideoId}
-        onClose={() => setCurrentVideoId(null)} 
-      />
+      {isAuthenticated && (
+        <MediaPlayer 
+          videoId={currentVideoId} 
+          playlist={playlist}
+          onPlay={setCurrentVideoId}
+          onClose={() => setCurrentVideoId(null)} 
+        />
+      )}
 
       {/* Background ambient effects */}
       <div className="fixed top-0 left-0 w-full h-full pointer-events-none z-[-1] overflow-hidden">

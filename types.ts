@@ -1,3 +1,4 @@
+
 export interface InventoryItem {
   id: string;
   name: string;
@@ -9,7 +10,6 @@ export interface InventoryItem {
   lastUpdated: string;
 }
 
-// NEW: Independent Master Data for Reject Module
 export interface RejectMasterItem {
   id: string;
   name: string;
@@ -18,7 +18,6 @@ export interface RejectMasterItem {
   category: string;
 }
 
-// NEW: User Management Types
 export type UserRole = 'ADMIN' | 'STAFF';
 
 export interface User {
@@ -31,7 +30,16 @@ export interface User {
   status: 'ACTIVE' | 'INACTIVE';
 }
 
-// NEW: Media Player Types
+export interface AuthResponse {
+  token: string;
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    role: UserRole;
+  };
+}
+
 export interface PlaylistItem {
   id: string;
   title: string;
@@ -42,7 +50,7 @@ export interface PlaylistItem {
 export interface KPIMetric {
   title: string;
   value: string | number;
-  change: number; // percentage
+  change: number; 
   trend: 'up' | 'down' | 'neutral';
   color: 'teal' | 'purple' | 'orange' | 'pink';
   iconName: string;
@@ -68,16 +76,15 @@ export interface CartItem extends InventoryItem {
 
 export interface TransactionRecord {
   id: string;
-  date: string; // ISO String
+  date: string; 
   type: 'IN' | 'OUT';
   items: CartItem[];
   totalUnits: number;
-  referenceNumber: string; // PO or Delivery Note
+  referenceNumber: string; 
   notes: string;
   photos: string[];
 }
 
-// Specific Item structure for Reject Cart (Decoupled from InventoryItem)
 export interface RejectCartItem extends RejectMasterItem {
   cartId: string;
   selectedUnit: UnitDefinition;
@@ -102,7 +109,6 @@ export enum AppView {
   SETTINGS = 'SETTINGS'
 }
 
-// NEW: Toast System Types
 export type ToastType = 'success' | 'error' | 'warning' | 'info';
 
 export interface ToastMessage {

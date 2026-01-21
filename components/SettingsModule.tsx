@@ -1,6 +1,9 @@
+
 import React, { useState } from 'react';
 import { User, UserRole } from '../types';
-import { Shield, Users, Lock, Plus, Edit2, Trash2, Check, X, Search, UserCircle, Key } from 'lucide-react';
+import { Shield, Users, Lock, Plus, Edit2, Trash2, Check, X, Search, UserCircle, Key, AlertTriangle, Database, RefreshCw } from 'lucide-react';
+import { api } from '../services/api';
+import { useToast } from './ToastSystem';
 
 interface SettingsModuleProps {
   users: User[];
@@ -10,8 +13,10 @@ interface SettingsModuleProps {
 }
 
 const SettingsModule: React.FC<SettingsModuleProps> = ({ users, onAddUser, onUpdateUser, onDeleteUser }) => {
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<'GENERAL' | 'USERS' | 'SECURITY'>('USERS');
   const [searchTerm, setSearchTerm] = useState('');
+  const [isResetLoading, setIsResetLoading] = useState(false);
   
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -53,22 +58,36 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ users, onAddUser, onUpd
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
     if (editingUser) {
-      // Edit Mode
-      onUpdateUser({
-        ...editingUser,
-        ...formData
-      });
+      onUpdateUser({ ...editingUser, ...formData });
     } else {
-      // Create Mode
-      onAddUser({
-        id: `usr-${Date.now()}`,
-        lastActive: 'Never',
-        ...formData
-      });
+      onAddUser({ id: `usr-${Date.now()}`, lastActive: 'Never', ...formData });
     }
     handleCloseModal();
+  };
+
+  const handleDeepReset = async () => {
+    const confirmation = window.confirm("PERINGATAN KRITIS: Anda akan menghapus SELURUH database (Inventory, Transaksi, Reject, dan User). Tindakan ini tidak dapat dibatalkan.\n\nApakah Anda yakin ingin melanjutkan?");
+    
+    if (confirmation) {
+      const confirmText = window.prompt("Ketik 'KONFIRMASI HAPUS' untuk melanjutkan penghapusan total:");
+      
+      if (confirmText === 'KONFIRMASI HAPUS') {
+        setIsResetLoading(true);
+        try {
+          const res = await api.resetSystem();
+          toast.success(res.message, "Database Direset");
+          // Refresh page to clear local states and redirect to initial dashboard
+          setTimeout(() => window.location.reload(), 2000);
+        } catch (err: any) {
+          toast.error(err.message || "Gagal melakukan penghapusan database", "Error");
+        } finally {
+          setIsResetLoading(false);
+        }
+      } else {
+        toast.info("Tindakan dibatalkan. Teks konfirmasi tidak sesuai.");
+      }
+    }
   };
 
   const filteredUsers = users.filter(user => 
@@ -84,7 +103,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ users, onAddUser, onUpd
             <Key className="w-8 h-8 text-slate-400" />
             System Settings
           </h1>
-          <p className="text-slate-400 mt-2">Configuration, User Access & RBAC Controls.</p>
+          <p className="text-slate-400 mt-2">Konfigurasi Sistem, Akses User & Kontrol Database.</p>
         </div>
       </div>
 
@@ -94,20 +113,20 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ users, onAddUser, onUpd
           <div className="space-y-2">
             <button 
                 onClick={() => setActiveTab('GENERAL')}
-                className={`w-full text-left px-4 py-3 rounded-xl font-medium transition-all ${activeTab === 'GENERAL' ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
+                className={`w-full text-left px-4 py-3 rounded-xl font-medium transition-all ${activeTab === 'GENERAL' ? 'bg-white/10 text-white border border-white/20 shadow-lg' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
             >
-                General
+                General & Maintenance
             </button>
             <button 
                 onClick={() => setActiveTab('USERS')}
-                className={`w-full text-left px-4 py-3 rounded-xl font-medium transition-all flex items-center gap-2 ${activeTab === 'USERS' ? 'bg-neon-purple/20 text-neon-purple border border-neon-purple/30' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
+                className={`w-full text-left px-4 py-3 rounded-xl font-medium transition-all flex items-center gap-2 ${activeTab === 'USERS' ? 'bg-neon-purple/20 text-neon-purple border border-neon-purple/30 shadow-lg' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
             >
                 <Users className="w-4 h-4" />
                 User Management
             </button>
             <button 
                 onClick={() => setActiveTab('SECURITY')}
-                className={`w-full text-left px-4 py-3 rounded-xl font-medium transition-all ${activeTab === 'SECURITY' ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
+                className={`w-full text-left px-4 py-3 rounded-xl font-medium transition-all ${activeTab === 'SECURITY' ? 'bg-white/10 text-white border border-white/20' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
             >
                 Security Logs
             </button>
@@ -115,8 +134,69 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ users, onAddUser, onUpd
         </div>
 
         {/* Content Area */}
-        <div className="flex-1 bg-dark-card border border-dark-border rounded-2xl p-6 glass-panel overflow-y-auto">
-          {activeTab === 'USERS' ? (
+        <div className="flex-1 bg-dark-card border border-dark-border rounded-2xl p-6 glass-panel overflow-y-auto custom-scrollbar">
+          
+          {activeTab === 'GENERAL' && (
+            <div className="space-y-12">
+               <div>
+                  <h2 className="text-xl font-bold text-white">Application Maintenance</h2>
+                  <p className="text-sm text-slate-400">Pengaturan metadata dan kesehatan database.</p>
+                  
+                  <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                          <label className="text-sm text-slate-500 font-bold uppercase tracking-wider">Database Status</label>
+                          <div className="flex items-center gap-3 px-4 py-3 bg-dark-bg border border-dark-border rounded-xl">
+                              <Database className="w-5 h-5 text-neon-teal" />
+                              <div className="flex-1">
+                                  <div className="text-sm text-white font-mono">neonflow_inventory</div>
+                                  <div className="text-[10px] text-green-400 font-bold uppercase">Online & Connected</div>
+                              </div>
+                          </div>
+                      </div>
+                      <div className="space-y-2">
+                          <label className="text-sm text-slate-500 font-bold uppercase tracking-wider">Backend IP</label>
+                          <div className="flex items-center gap-3 px-4 py-3 bg-dark-bg border border-dark-border rounded-xl">
+                              <Shield className="w-5 h-5 text-slate-400" />
+                              <div className="flex-1">
+                                  <div className="text-sm text-white font-mono">89.21.85.28</div>
+                                  <div className="text-[10px] text-slate-500 font-bold uppercase">Secure VPS Node</div>
+                              </div>
+                          </div>
+                      </div>
+                  </div>
+               </div>
+
+               {/* Danger Zone */}
+               <div className="pt-8 border-t border-red-500/20">
+                  <div className="flex items-center gap-3 text-red-500">
+                    <AlertTriangle className="w-6 h-6 animate-pulse" />
+                    <div>
+                        <h3 className="text-xl font-bold">Danger Zone</h3>
+                        <p className="text-sm text-slate-500">Tindakan berikut akan menghapus data secara permanen.</p>
+                    </div>
+                  </div>
+                  
+                  <div className="mt-6 p-8 border border-red-500/30 bg-red-500/5 rounded-2xl flex flex-col md:flex-row justify-between items-center gap-8 shadow-[0_0_50px_rgba(239,68,68,0.05)]">
+                      <div className="max-w-lg">
+                          <h4 className="font-bold text-white text-lg">Hapus Semua Database (Reset Total)</h4>
+                          <p className="text-slate-400 text-sm mt-2 leading-relaxed">
+                              Ini akan melakukan <code>DROP TABLES</code> pada seluruh database MySQL Anda. Semua item inventaris, log transaksi, riwayat reject, dan akun pengguna akan dihapus selamanya. Sistem akan menyisakan satu akun Super Admin default untuk akses kembali.
+                          </p>
+                      </div>
+                      <button 
+                        onClick={handleDeepReset}
+                        disabled={isResetLoading}
+                        className="w-full md:w-auto px-10 py-4 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl transition-all shadow-[0_0_20px_rgba(220,38,38,0.4)] flex items-center justify-center gap-3 disabled:opacity-50"
+                      >
+                        {isResetLoading ? <RefreshCw className="w-6 h-6 animate-spin" /> : <Trash2 className="w-6 h-6" />}
+                        HAPUS SEMUA DATA
+                      </button>
+                  </div>
+               </div>
+            </div>
+          )}
+
+          {activeTab === 'USERS' && (
             <div className="space-y-6 h-full flex flex-col">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                   <div>
@@ -192,7 +272,6 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ users, onAddUser, onUpd
                                             >
                                                 <Edit2 className="w-4 h-4" />
                                             </button>
-                                            {/* Simple RBAC protection: Don't allow deleting ID 'usr-1' (Super Admin) */}
                                             {user.id !== 'usr-1' && (
                                                 <button 
                                                     onClick={() => onDeleteUser(user.id)}
@@ -210,11 +289,13 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ users, onAddUser, onUpd
                 </div>
               </div>
             </div>
-          ) : (
+          )}
+
+          {activeTab === 'SECURITY' && (
              <div className="flex flex-col items-center justify-center h-full text-slate-500">
                 <Lock className="w-16 h-16 mb-4 opacity-20" />
                 <h3 className="text-lg font-medium text-slate-300">Restricted Access</h3>
-                <p>This section is currently locked or under development.</p>
+                <p>Security audit logs are currently restricted to Super Admins.</p>
              </div>
           )}
         </div>

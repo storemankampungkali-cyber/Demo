@@ -1,15 +1,19 @@
+
 {
   "name": "neonflow-server",
   "version": "1.0.0",
-  "description": "Backend for NeonFlow Inventory (MySQL Version)",
+  "description": "Backend for NeonFlow Inventory (MySQL) with Auth",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "nodemon index.js"
+    "dev": "nodemon index.js",
+    "db:setup": "node setupDB.js"
   },
   "dependencies": {
+    "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.2",
     "mysql2": "^3.6.5",
     "sequelize": "^6.35.1"
   },
