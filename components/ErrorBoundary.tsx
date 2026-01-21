@@ -1,5 +1,5 @@
 
-import React, { Component, ErrorInfo, ReactNode } from 'react';
+import React, { ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw, Terminal } from 'lucide-react';
 
 interface Props {
@@ -13,11 +13,11 @@ interface State {
   errorInfo: ErrorInfo | null;
 }
 
-// Fixed inheritance by using Component directly to ensure state and props are recognized by the compiler
-class ErrorBoundary extends Component<Props, State> {
+// Fix: Explicitly extend React.Component<Props, State> to resolve 'state', 'setState', and 'props' access issues
+class ErrorBoundary extends React.Component<Props, State> {
   constructor(props: Props) {
     super(props);
-    // Properly initialize state on the class instance
+    // Fix: Properly initialize state inherited from React.Component
     this.state = {
       hasError: false,
       error: null,
@@ -33,6 +33,7 @@ class ErrorBoundary extends Component<Props, State> {
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     // Log the error and update state with error info for debugging display
     console.error("Uncaught error:", error, errorInfo);
+    // Fix: setState is now correctly typed and recognized
     this.setState({ errorInfo });
   }
 
@@ -41,6 +42,7 @@ class ErrorBoundary extends Component<Props, State> {
   };
 
   public render() {
+    // Fix: state property access on the class instance
     if (this.state.hasError) {
       // Custom fallback UI for system failures
       return (
@@ -64,10 +66,13 @@ class ErrorBoundary extends Component<Props, State> {
               <div className="bg-black/50 border border-red-900/30 rounded-lg p-4 font-mono text-xs overflow-auto max-h-40 custom-scrollbar">
                 <p className="text-red-500 font-bold mb-2">$ error_log --verbose</p>
                 <p className="text-slate-300 whitespace-pre-wrap break-words">
+                  {/* Fix: Access error state property */}
                   {this.state.error && this.state.error.toString()}
                 </p>
+                {/* Fix: Access errorInfo state property */}
                 {this.state.errorInfo && (
                   <p className="text-slate-500 mt-2 whitespace-pre-wrap break-words opacity-70">
+                    {/* Fix: Access componentStack from errorInfo state */}
                     {this.state.errorInfo.componentStack}
                   </p>
                 )}
@@ -99,7 +104,7 @@ class ErrorBoundary extends Component<Props, State> {
       );
     }
 
-    // Return children normally if no error occurred
+    // Fix: props property access on the class instance
     return this.props.children;
   }
 }

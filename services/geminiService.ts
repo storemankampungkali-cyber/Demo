@@ -1,12 +1,13 @@
-import { GoogleGenAI, Type } from "@google/genai";
+
+import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { InventoryItem } from "../types";
 
-// Initialize Gemini Client
+// Fix: Always use named parameter for apiKey and initialize directly from process.env.API_KEY
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 const modelName = "gemini-3-flash-preview";
 
-// Helper to implement timeout
+// Helper untuk timeout
 const timeout = (ms: number) => new Promise((_, reject) => setTimeout(() => reject(new Error('Request timed out')), ms));
 
 export const analyzeInventoryHealth = async (items: InventoryItem[]): Promise<string> => {
@@ -14,25 +15,25 @@ export const analyzeInventoryHealth = async (items: InventoryItem[]): Promise<st
     const dataSummary = items.map(i => `${i.name} (${i.quantity} units, $${i.price}, Status: ${i.status})`).join('\n');
     
     if (items.length === 0) {
-        return "Inventory is empty. Add items to generate insights.";
+        return "Inventory kosong. Tambahkan item untuk analisis AI.";
     }
 
     const prompt = `
-      Analyze the following inventory data and provide a concise strategic summary (max 300 words).
-      Focus on:
-      1. Potential revenue risks (low stock).
-      2. Overstocking issues.
-      3. Pricing anomalies or suggestions.
-      4. Overall health score (0-100).
+      Analisislah data inventaris berikut dan berikan ringkasan strategis yang ringkas (maks 300 kata).
+      Fokus pada:
+      1. Risiko pendapatan (stok rendah).
+      2. Masalah stok berlebih.
+      3. Saran atau anomali harga.
+      4. Skor kesehatan keseluruhan (0-100).
 
       Inventory Data:
       ${dataSummary}
       
-      Format with clear headings. Use Markdown.
+      Format dengan heading yang jelas dalam Markdown.
     `;
 
-    // Race the API call against a 15-second timeout
-    const result: any = await Promise.race([
+    // Fix: Explicitly type the response as GenerateContentResponse and use it as a property (not a method)
+    const response = await Promise.race([
         ai.models.generateContent({
             model: modelName,
             contents: prompt,
@@ -41,34 +42,34 @@ export const analyzeInventoryHealth = async (items: InventoryItem[]): Promise<st
             }
         }),
         timeout(15000)
-    ]);
+    ]) as GenerateContentResponse;
 
-    return result.text || "No analysis generated.";
+    return response.text || "Tidak ada analisis yang dihasilkan.";
   } catch (error: any) {
     console.error("Gemini Analysis Error:", error);
     if (error.message === 'Request timed out') {
-        return "Analysis timed out. The server is taking too long to respond. Please try again.";
+        return "Analisis timed out. Server merespon terlalu lama.";
     }
-    return "Failed to generate AI insights. Please check your API key or internet connection.";
+    return `Gagal menghasilkan insight AI: ${error.message}`;
   }
 };
 
 export const suggestRestockPlan = async (items: InventoryItem[]): Promise<{ item: string; suggestion: string }[]> => {
-    // Filter for items that need attention to save tokens
-    const criticalItems = items.filter(i => i.quantity < 20 || i.status === 'Low Stock');
-    
-    if (criticalItems.length === 0) return [];
-
-    const prompt = `
-      For the following critical inventory items, suggest a restock strategy.
-      Return a JSON array where each object has "item" (name) and "suggestion" (short action plan).
-      
-      Items:
-      ${JSON.stringify(criticalItems.map(i => ({ name: i.name, quantity: i.quantity, salesVelocity: 'Unknown' })))}
-    `;
-
     try {
-        const response: any = await Promise.race([
+        const criticalItems = items.filter(i => i.quantity < 20 || i.status === 'Low Stock');
+        
+        if (criticalItems.length === 0) return [];
+
+        const prompt = `
+          Berikan strategi restock untuk item kritis berikut.
+          Kembalikan array JSON dengan objek "item" (nama) dan "suggestion" (rencana aksi singkat).
+          
+          Items:
+          ${JSON.stringify(criticalItems.map(i => ({ name: i.name, quantity: i.quantity })))}
+        `;
+
+        // Fix: Explicitly type the response as GenerateContentResponse and follow property access rules
+        const response = await Promise.race([
             ai.models.generateContent({
                 model: modelName,
                 contents: prompt,
@@ -88,13 +89,13 @@ export const suggestRestockPlan = async (items: InventoryItem[]): Promise<{ item
                 }
             }),
             timeout(10000)
-        ]);
+        ]) as GenerateContentResponse;
 
         const text = response.text;
         if (!text) return [];
         return JSON.parse(text);
     } catch (e) {
         console.error("Restock Plan Error", e);
-        return []; // Fail silently for secondary features
+        return [];
     }
 }
