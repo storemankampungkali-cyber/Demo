@@ -2,22 +2,14 @@
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { InventoryItem } from "../types.ts";
 
-// Proteksi API Key agar tidak crash di browser
-const getApiKey = () => {
-  try {
-    return process.env.API_KEY || "";
-  } catch (e) {
-    return "";
-  }
-};
-
-const ai = new GoogleGenAI({ apiKey: getApiKey() });
-const modelName = "gemini-3-flash-preview";
+// Fix: Always use the specified initialization pattern for GoogleGenAI.
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 const timeout = (ms: number) => new Promise((_, reject) => setTimeout(() => reject(new Error('Request timed out')), ms));
 
 export const analyzeInventoryHealth = async (items: InventoryItem[]): Promise<string> => {
-  if (!getApiKey()) return "AI Insight dinonaktifkan: API Key tidak ditemukan.";
+  // Fix: The API key must be obtained exclusively from process.env.API_KEY.
+  if (!process.env.API_KEY) return "AI Insight dinonaktifkan: API Key tidak ditemukan.";
   
   try {
     const dataSummary = items.map(i => `${i.name} (${i.quantity} units, $${i.price}, Status: ${i.status})`).join('\n');
@@ -40,9 +32,10 @@ export const analyzeInventoryHealth = async (items: InventoryItem[]): Promise<st
       Format dengan heading yang jelas dalam Markdown.
     `;
 
+    // Fix: Using gemini-3-flash-preview for basic text task (summarization).
     const response = await Promise.race([
         ai.models.generateContent({
-            model: modelName,
+            model: 'gemini-3-flash-preview',
             contents: prompt,
             config: {
                 thinkingConfig: { thinkingBudget: 0 }, 
@@ -51,6 +44,7 @@ export const analyzeInventoryHealth = async (items: InventoryItem[]): Promise<st
         timeout(15000)
     ]) as GenerateContentResponse;
 
+    // Fix: Access the .text property directly (not as a method).
     return response.text || "Tidak ada analisis yang dihasilkan.";
   } catch (error: any) {
     console.error("Gemini Analysis Error:", error);
@@ -59,7 +53,8 @@ export const analyzeInventoryHealth = async (items: InventoryItem[]): Promise<st
 };
 
 export const suggestRestockPlan = async (items: InventoryItem[]): Promise<{ item: string; suggestion: string }[]> => {
-    if (!getApiKey()) return [];
+    // Fix: The API key must be obtained exclusively from process.env.API_KEY.
+    if (!process.env.API_KEY) return [];
     
     try {
         const criticalItems = items.filter(i => i.quantity < 20 || i.status === 'Low Stock');
@@ -73,9 +68,10 @@ export const suggestRestockPlan = async (items: InventoryItem[]): Promise<{ item
           ${JSON.stringify(criticalItems.map(i => ({ name: i.name, quantity: i.quantity })))}
         `;
 
+        // Fix: Using gemini-3-pro-preview for complex reasoning and structured JSON output tasks.
         const response = await Promise.race([
             ai.models.generateContent({
-                model: modelName,
+                model: 'gemini-3-pro-preview',
                 contents: prompt,
                 config: {
                     responseMimeType: "application/json",
@@ -95,6 +91,7 @@ export const suggestRestockPlan = async (items: InventoryItem[]): Promise<{ item
             timeout(10000)
         ]) as GenerateContentResponse;
 
+        // Fix: Access the .text property directly and parse the JSON string.
         const text = response.text;
         if (!text) return [];
         return JSON.parse(text);

@@ -1,5 +1,5 @@
 
-import React, { Component, ErrorInfo, ReactNode } from 'react';
+import React, { ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw, Terminal } from 'lucide-react';
 
 interface Props {
@@ -13,17 +13,14 @@ interface State {
   errorInfo: ErrorInfo | null;
 }
 
-// Fix: Directly extend Component to ensure proper inheritance of state, props, and setState.
-class ErrorBoundary extends Component<Props, State> {
-  constructor(props: Props) {
-    super(props);
-    // Initialize state inherited from Component
-    this.state = {
-      hasError: false,
-      error: null,
-      errorInfo: null
-    };
-  }
+// Fix: Use React.Component explicitly and property initialization for state to resolve TypeScript inheritance errors.
+class ErrorBoundary extends React.Component<Props, State> {
+  // Property initialization ensures state is correctly typed and accessible on 'this'.
+  public state: State = {
+    hasError: false,
+    error: null,
+    errorInfo: null
+  };
 
   public static getDerivedStateFromError(error: Error): State {
     // Update state so the next render will show the fallback UI.
@@ -33,6 +30,7 @@ class ErrorBoundary extends Component<Props, State> {
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     // Log the error and update state with error info for debugging display
     console.error("Uncaught error:", error, errorInfo);
+    // Fix: setState is now correctly inherited from React.Component.
     this.setState({ errorInfo });
   }
 
@@ -41,6 +39,7 @@ class ErrorBoundary extends Component<Props, State> {
   };
 
   public render() {
+    // Fix: this.state is now correctly inherited and recognized.
     if (this.state.hasError) {
       // Custom fallback UI for system failures
       return (
@@ -99,6 +98,7 @@ class ErrorBoundary extends Component<Props, State> {
       );
     }
 
+    // Fix: this.props is now correctly inherited and recognized.
     return this.props.children;
   }
 }
