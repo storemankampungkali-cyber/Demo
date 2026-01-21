@@ -6,9 +6,21 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>NeonFlow | Advanced Inventory</title>
+    
+    <!-- CSS & Fonts -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
     <script>
+      // 1. Browser Shim for process.env (CRITICAL FIX)
+      // Ini mencegah "process is not defined" error yang menyebabkan layar blank
+      window.process = { 
+        env: { 
+          NODE_ENV: 'production',
+          API_KEY: '' // Akan diinjeksi secara otomatis oleh environment jika tersedia
+        } 
+      };
+
       tailwind.config = {
         darkMode: 'class',
         theme: {
@@ -36,10 +48,13 @@
         }
       }
     </script>
+
     <style>
       body {
         background-color: #05070a;
         color: #e2e8f0;
+        margin: 0;
+        min-height: 100vh;
         background-image: 
           radial-gradient(circle at 10% 20%, rgba(0, 242, 234, 0.05) 0%, transparent 40%),
           radial-gradient(circle at 90% 80%, rgba(185, 77, 255, 0.05) 0%, transparent 40%),
@@ -49,11 +64,16 @@
         background-attachment: fixed;
       }
       
+      #root {
+        position: relative;
+        z-index: 10;
+        min-height: 100vh;
+      }
+
       .glass-card {
         background: rgba(15, 18, 29, 0.7);
         backdrop-filter: blur(12px);
         border: 1px solid rgba(255, 255, 255, 0.05);
-        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
       }
 
       ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -61,6 +81,8 @@
       ::-webkit-scrollbar-thumb { background: #242b3d; border-radius: 10px; }
       ::-webkit-scrollbar-thumb:hover { background: #00f2ea; }
     </style>
+
+    <!-- 2. Optimized Import Map -->
     <script type="importmap">
 {
   "imports": {
@@ -80,6 +102,13 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- 3. Explicit Path with Dot-Slash -->
     <script type="module" src="./index.tsx"></script>
+    
+    <!-- Background Decor (Low Z-Index) -->
+    <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; overflow: hidden;">
+      <div style="position: absolute; top: -10%; right: -10%; width: 500px; height: 500px; background: rgba(185, 77, 255, 0.05); border-radius: 50%; filter: blur(120px);"></div>
+      <div style="position: absolute; bottom: -10%; left: -10%; width: 500px; height: 500px; background: rgba(0, 242, 234, 0.05); border-radius: 50%; filter: blur(120px);"></div>
+    </div>
   </body>
 </html>

@@ -5,26 +5,26 @@ import App from './App.tsx';
 import { ToastProvider } from './components/ToastSystem.tsx';
 import ErrorBoundary from './components/ErrorBoundary.tsx';
 
-console.log("🚀 NeonFlow Initializing...");
+console.log("🚀 [System] NeonFlow Loading...");
 
-const rootElement = document.getElementById('root');
-if (!rootElement) {
-  console.error("❌ CRITICAL: Could not find root element to mount to");
-  throw new Error("Could not find root element to mount to");
-}
+const container = document.getElementById('root');
 
-try {
-  const root = ReactDOM.createRoot(rootElement);
-  root.render(
-    <React.StrictMode>
-      <ErrorBoundary>
-        <ToastProvider>
+if (!container) {
+  console.error("❌ [Fatal] Root element #root not found in DOM");
+} else {
+  try {
+    const root = ReactDOM.createRoot(container);
+    root.render(
+      <React.StrictMode>
+        <ErrorBoundary>
+          <ToastProvider>
             <App />
-        </ToastProvider>
-      </ErrorBoundary>
-    </React.StrictMode>
-  );
-  console.log("✅ NeonFlow Rendered Successfully");
-} catch (error) {
-  console.error("❌ NeonFlow Mounting Error:", error);
+          </ToastProvider>
+        </ErrorBoundary>
+      </React.StrictMode>
+    );
+    console.log("✅ [System] NeonFlow Main Component Mounted");
+  } catch (err) {
+    console.error("❌ [Fatal] Render process failed:", err);
+  }
 }

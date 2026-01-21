@@ -1,16 +1,24 @@
 
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
-import { InventoryItem } from "../types";
+import { InventoryItem } from "../types.ts";
 
-// Fix: Always use named parameter for apiKey and initialize directly from process.env.API_KEY
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Proteksi API Key agar tidak crash di browser
+const getApiKey = () => {
+  try {
+    return process.env.API_KEY || "";
+  } catch (e) {
+    return "";
+  }
+};
 
+const ai = new GoogleGenAI({ apiKey: getApiKey() });
 const modelName = "gemini-3-flash-preview";
 
-// Helper untuk timeout
 const timeout = (ms: number) => new Promise((_, reject) => setTimeout(() => reject(new Error('Request timed out')), ms));
 
 export const analyzeInventoryHealth = async (items: InventoryItem[]): Promise<string> => {
+  if (!getApiKey()) return "AI Insight dinonaktifkan: API Key tidak ditemukan.";
+  
   try {
     const dataSummary = items.map(i => `${i.name} (${i.quantity} units, $${i.price}, Status: ${i.status})`).join('\n');
     
@@ -32,7 +40,6 @@ export const analyzeInventoryHealth = async (items: InventoryItem[]): Promise<st
       Format dengan heading yang jelas dalam Markdown.
     `;
 
-    // Fix: Explicitly type the response as GenerateContentResponse and use it as a property (not a method)
     const response = await Promise.race([
         ai.models.generateContent({
             model: modelName,
@@ -47,17 +54,15 @@ export const analyzeInventoryHealth = async (items: InventoryItem[]): Promise<st
     return response.text || "Tidak ada analisis yang dihasilkan.";
   } catch (error: any) {
     console.error("Gemini Analysis Error:", error);
-    if (error.message === 'Request timed out') {
-        return "Analisis timed out. Server merespon terlalu lama.";
-    }
     return `Gagal menghasilkan insight AI: ${error.message}`;
   }
 };
 
 export const suggestRestockPlan = async (items: InventoryItem[]): Promise<{ item: string; suggestion: string }[]> => {
+    if (!getApiKey()) return [];
+    
     try {
         const criticalItems = items.filter(i => i.quantity < 20 || i.status === 'Low Stock');
-        
         if (criticalItems.length === 0) return [];
 
         const prompt = `
@@ -68,7 +73,6 @@ export const suggestRestockPlan = async (items: InventoryItem[]): Promise<{ item
           ${JSON.stringify(criticalItems.map(i => ({ name: i.name, quantity: i.quantity })))}
         `;
 
-        // Fix: Explicitly type the response as GenerateContentResponse and follow property access rules
         const response = await Promise.race([
             ai.models.generateContent({
                 model: modelName,
