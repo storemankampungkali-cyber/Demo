@@ -1,20 +1,20 @@
 
-import React, { Component, ErrorInfo, ReactNode } from 'react';
+import React from 'react';
 import { AlertTriangle, RefreshCw, Terminal } from 'lucide-react';
 
 interface Props {
   // Use optional children to prevent "missing children" errors in JSX instantiations
-  children?: ReactNode;
+  children?: React.ReactNode;
 }
 
 interface State {
   hasError: boolean;
   error: Error | null;
-  errorInfo: ErrorInfo | null;
+  errorInfo: React.ErrorInfo | null;
 }
 
-// Fix: Directly import and extend Component from 'react' to ensure proper inheritance of state, props, and setState.
-class ErrorBoundary extends Component<Props, State> {
+// Fix: Directly extend React.Component to ensure proper inheritance of state, props, and setState.
+class ErrorBoundary extends React.Component<Props, State> {
   constructor(props: Props) {
     super(props);
     // Initialize state inherited from Component
@@ -30,7 +30,7 @@ class ErrorBoundary extends Component<Props, State> {
     return { hasError: true, error, errorInfo: null };
   }
 
-  public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+  public componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     // Log the error and update state with error info for debugging display
     console.error("Uncaught error:", error, errorInfo);
     this.setState({ errorInfo });
