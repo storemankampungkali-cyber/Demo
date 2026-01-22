@@ -1,3 +1,4 @@
+
 -- NEONFLOW INVENTORY DATABASE SCHEMA (MySQL)
 CREATE DATABASE IF NOT EXISTS neonflow_inventory;
 USE neonflow_inventory;
