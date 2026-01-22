@@ -1,9 +1,7 @@
-
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
-// Mengambil instance dari models.js yang benar
 const { sequelize, Inventory, Transaction, RejectMaster, RejectRecord, User } = require('./models');
 
 const app = express();
@@ -32,7 +30,7 @@ app.post('/api/auth/login', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// SYSTEM RESET (Hanya untuk debugging)
+// SYSTEM RESET
 app.post('/api/system/reset', async (req, res) => {
   try {
     await sequelize.sync({ force: true });
@@ -82,5 +80,5 @@ app.delete('/api/users/:id', async (req, res) => {
     res.json({ success: true });
 });
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 NeonFlow Server on port ${PORT}`));
