@@ -4,11 +4,17 @@ import { InventoryItem } from "../types.ts";
 const timeout = (ms: number) => new Promise((_, reject) => setTimeout(() => reject(new Error('Request timed out')), ms));
 
 /**
- * Mendapatkan instance AI secara dinamis.
- * Dipindah ke fungsi untuk mencegah crash top-level jika API_KEY kosong.
+ * Mendapatkan instance AI secara dinamis (Lazy Initialization).
+ * Mencegah crash fatal saat startup jika API_KEY belum tersedia.
+ * Menggunakan fallback ke window.process untuk keamanan runtime.
  */
 const getAIInstance = () => {
-  const apiKey = process.env.API_KEY;
+  // Ambil key dari process.env (Node/Vite) atau window.process (Shim browser)
+  const env = (typeof process !== 'undefined' ? process.env : {}) as any;
+  const win = (typeof window !== 'undefined' ? (window as any).process?.env : {}) as any;
+  
+  const apiKey = env.API_KEY || win.API_KEY || '';
+  
   if (!apiKey) {
     throw new Error("API_KEY_MISSING");
   }
@@ -17,7 +23,9 @@ const getAIInstance = () => {
 
 export const analyzeInventoryHealth = async (items: InventoryItem[]): Promise<string> => {
   try {
+    // Instance dibuat HANYA saat fungsi dipanggil
     const ai = getAIInstance();
+    
     const dataSummary = items.map(i => `${i.name} (${i.quantity} units, $${i.price}, Status: ${i.status})`).join('\n');
     
     if (items.length === 0) {
@@ -52,7 +60,7 @@ export const analyzeInventoryHealth = async (items: InventoryItem[]): Promise<st
     return response.text || "Tidak ada analisis yang dihasilkan.";
   } catch (error: any) {
     if (error.message === "API_KEY_MISSING") {
-      return "AI Insight dinonaktifkan: API Key tidak ditemukan di environment.";
+      return "⚠️ AI Insight tidak tersedia.\n\nAPI Key belum dikonfigurasi. Silakan tambahkan 'API_KEY' di environment variables Vercel Anda.";
     }
     console.error("Gemini Analysis Error:", error);
     return `Gagal menghasilkan insight AI: ${error.message}`;
@@ -62,6 +70,7 @@ export const analyzeInventoryHealth = async (items: InventoryItem[]): Promise<st
 export const suggestRestockPlan = async (items: InventoryItem[]): Promise<{ item: string; suggestion: string }[]> => {
     try {
         const ai = getAIInstance();
+        
         const criticalItems = items.filter(i => i.quantity < 20 || i.status === 'Low Stock');
         if (criticalItems.length === 0) return [];
 
@@ -98,8 +107,9 @@ export const suggestRestockPlan = async (items: InventoryItem[]): Promise<{ item
         const text = response.text;
         if (!text) return [];
         return JSON.parse(text);
-    } catch (e) {
+    } catch (e: any) {
         console.error("Restock Plan Error", e);
+        if (e.message === "API_KEY_MISSING") return [];
         return [];
     }
 };

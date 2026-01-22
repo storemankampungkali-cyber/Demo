@@ -1,6 +1,6 @@
-
 import { InventoryItem, TransactionRecord, RejectMasterItem, RejectRecord, User, AuthResponse } from "../types.ts";
 
+// Menggunakan relative path '/api' agar Vercel Proxy (rewrites) bisa menangkap dan meneruskan ke Backend IP
 const API_URL = '/api';
 
 async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
@@ -12,10 +12,11 @@ async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
 
     const contentType = response.headers.get("content-type");
     
-    // Jika response bukan JSON (biasanya error page HTML dari Vercel/Nginx)
+    // Safety check: Jika response bukan JSON (misal error HTML dari proxy 502/404), throw error spesifik
     if (!contentType || !contentType.includes("application/json")) {
+      // Kita baca sedikit teksnya untuk debugging di console, tapi jangan diekspos ke UI jika sensitif
       const text = await response.text();
-      console.warn(`[API Warning] Expected JSON but got: ${text.substring(0, 50)}...`);
+      console.warn(`[API Proxy Warning] Endpoint ${endpoint} returned non-JSON. Response start: ${text.substring(0, 100)}...`);
       throw new Error("SERVER_CONNECTION_ERROR");
     }
 
@@ -26,9 +27,9 @@ async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
 
     return response.json();
   } catch (err: any) {
-    // Jika gagal fetch (Network Error) atau bukan JSON
+    // Handling khusus jika backend tidak bisa dihubungi sama sekali
     if (err.message === 'Failed to fetch' || err.message === 'SERVER_CONNECTION_ERROR') {
-      console.error("🌐 Backend Offline. Switching to Local Strategy.");
+      console.error("🌐 Backend Unreachable via Vercel Proxy.");
       throw new Error("BACKEND_OFFLINE");
     }
     throw err;
@@ -43,11 +44,11 @@ export const api = {
         body: JSON.stringify(credentials) 
       });
     } catch (err: any) {
-      // Local Mock Auth Fallback (Untuk bypass error 'An error occurred' di Vercel)
+      // Mock Auth Fallback hanya jika Backend Offline total
       if (err.message === "BACKEND_OFFLINE" || err.message === "SERVER_CONNECTION_ERROR") {
         if (credentials.email === 'admin' && credentials.password === '22') {
           return {
-            token: "mock-session-token",
+            token: "mock-session-token-offline",
             user: { id: "usr-1", name: "Super Admin (Offline Mode)", email: "admin", role: "ADMIN" }
           };
         }
