@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { User, UserRole } from '../types';
 import { Shield, Users, Lock, Plus, Edit2, Trash2, Check, X, Search, UserCircle, Key, AlertTriangle, Database, RefreshCw } from 'lucide-react';
@@ -158,7 +157,7 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ users, onAddUser, onUpd
                           <div className="flex items-center gap-3 px-4 py-3 bg-dark-bg border border-dark-border rounded-xl">
                               <Shield className="w-5 h-5 text-slate-400" />
                               <div className="flex-1">
-                                  <div className="text-sm text-white font-mono">89.21.85.28</div>
+                                  <div className="text-sm text-white font-mono">165.245.187.238</div>
                                   <div className="text-[10px] text-slate-500 font-bold uppercase">Secure VPS Node</div>
                               </div>
                           </div>
