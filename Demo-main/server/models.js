@@ -1,12 +1,13 @@
+
 require('dotenv').config();
 const { Sequelize, DataTypes } = require('sequelize');
 const bcrypt = require('bcryptjs');
 
-// --- 1. DATABASE CONFIGURATION ---
+// Menggunakan environment variables dari .env (fallback ke hardcoded jika perlu untuk emergency)
 const sequelize = new Sequelize(
   process.env.DB_NAME || 'neonflow_inventory', 
-  process.env.DB_USER || 'root', 
-  process.env.DB_PASS || '', 
+  process.env.DB_USER || 'dudung', 
+  process.env.DB_PASS || 'Lokasiku123.', 
   {
     host: process.env.DB_HOST || '127.0.0.1',
     dialect: 'mysql',
@@ -15,7 +16,6 @@ const sequelize = new Sequelize(
   }
 );
 
-// --- 2. MODEL DEFINITIONS ---
 const Inventory = sequelize.define('Inventory', {
   id: { type: DataTypes.STRING, primaryKey: true },
   name: { type: DataTypes.STRING, allowNull: false },
@@ -82,34 +82,5 @@ const User = sequelize.define('User', {
 User.prototype.validatePassword = async function(password) {
   return await bcrypt.compare(password, this.password);
 };
-
-// --- 3. DATABASE INITIALIZATION SCRIPT ---
-const initDB = async () => {
-    try {
-        console.log('🚀 INITIALIZING NEONFLOW DATABASE...');
-        await sequelize.sync({ force: true });
-        
-        await User.create({
-            id: 'usr-admin-01',
-            name: 'Super Admin',
-            email: 'admin',
-            password: '22',
-            role: 'ADMIN',
-            status: 'ACTIVE',
-            lastActive: 'System Initialized'
-        });
-
-        console.log('✅ Success! Database synced and admin user created.');
-        console.log('👉 Login: admin / 22');
-        process.exit(0);
-    } catch (error) {
-        console.error('❌ Initialization Error:', error);
-        process.exit(1);
-    }
-};
-
-if (require.main === module) {
-    initDB();
-}
 
 module.exports = { sequelize, Inventory, Transaction, RejectMaster, RejectRecord, User };
