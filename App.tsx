@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar.tsx';
 import Dashboard from './components/Dashboard.tsx';
@@ -30,6 +29,15 @@ const App: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [playlist, setPlaylist] = useState<PlaylistItem[]>(SAMPLE_PLAYLIST);
   const [currentVideoId, setCurrentVideoId] = useState<string | null>(null);
+
+  // Clear HTML Fallback Loading Screen once App is ready
+  useEffect(() => {
+    const loadingScreen = document.getElementById('js-check');
+    if (loadingScreen) {
+      loadingScreen.style.opacity = '0';
+      setTimeout(() => loadingScreen.remove(), 300);
+    }
+  }, []);
 
   const fetchData = async () => {
       try {
