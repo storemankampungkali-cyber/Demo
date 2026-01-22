@@ -1,17 +1,23 @@
-
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { InventoryItem } from "../types.ts";
 
-// Fix: Always use the specified initialization pattern for GoogleGenAI.
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
 const timeout = (ms: number) => new Promise((_, reject) => setTimeout(() => reject(new Error('Request timed out')), ms));
 
+/**
+ * Mendapatkan instance AI secara dinamis.
+ * Dipindah ke fungsi untuk mencegah crash top-level jika API_KEY kosong.
+ */
+const getAIInstance = () => {
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) {
+    throw new Error("API_KEY_MISSING");
+  }
+  return new GoogleGenAI({ apiKey });
+};
+
 export const analyzeInventoryHealth = async (items: InventoryItem[]): Promise<string> => {
-  // Fix: The API key must be obtained exclusively from process.env.API_KEY.
-  if (!process.env.API_KEY) return "AI Insight dinonaktifkan: API Key tidak ditemukan.";
-  
   try {
+    const ai = getAIInstance();
     const dataSummary = items.map(i => `${i.name} (${i.quantity} units, $${i.price}, Status: ${i.status})`).join('\n');
     
     if (items.length === 0) {
@@ -32,7 +38,6 @@ export const analyzeInventoryHealth = async (items: InventoryItem[]): Promise<st
       Format dengan heading yang jelas dalam Markdown.
     `;
 
-    // Fix: Using gemini-3-flash-preview for basic text task (summarization).
     const response = await Promise.race([
         ai.models.generateContent({
             model: 'gemini-3-flash-preview',
@@ -44,19 +49,19 @@ export const analyzeInventoryHealth = async (items: InventoryItem[]): Promise<st
         timeout(15000)
     ]) as GenerateContentResponse;
 
-    // Fix: Access the .text property directly (not as a method).
     return response.text || "Tidak ada analisis yang dihasilkan.";
   } catch (error: any) {
+    if (error.message === "API_KEY_MISSING") {
+      return "AI Insight dinonaktifkan: API Key tidak ditemukan di environment.";
+    }
     console.error("Gemini Analysis Error:", error);
     return `Gagal menghasilkan insight AI: ${error.message}`;
   }
 };
 
 export const suggestRestockPlan = async (items: InventoryItem[]): Promise<{ item: string; suggestion: string }[]> => {
-    // Fix: The API key must be obtained exclusively from process.env.API_KEY.
-    if (!process.env.API_KEY) return [];
-    
     try {
+        const ai = getAIInstance();
         const criticalItems = items.filter(i => i.quantity < 20 || i.status === 'Low Stock');
         if (criticalItems.length === 0) return [];
 
@@ -68,7 +73,6 @@ export const suggestRestockPlan = async (items: InventoryItem[]): Promise<{ item
           ${JSON.stringify(criticalItems.map(i => ({ name: i.name, quantity: i.quantity })))}
         `;
 
-        // Fix: Using gemini-3-pro-preview for complex reasoning and structured JSON output tasks.
         const response = await Promise.race([
             ai.models.generateContent({
                 model: 'gemini-3-pro-preview',
@@ -91,7 +95,6 @@ export const suggestRestockPlan = async (items: InventoryItem[]): Promise<{ item
             timeout(10000)
         ]) as GenerateContentResponse;
 
-        // Fix: Access the .text property directly and parse the JSON string.
         const text = response.text;
         if (!text) return [];
         return JSON.parse(text);
@@ -99,4 +102,4 @@ export const suggestRestockPlan = async (items: InventoryItem[]): Promise<{ item
         console.error("Restock Plan Error", e);
         return [];
     }
-}
+};
