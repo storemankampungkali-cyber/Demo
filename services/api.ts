@@ -1,14 +1,23 @@
 import { InventoryItem, TransactionRecord, RejectMasterItem, RejectRecord, User, AuthResponse } from "../types.ts";
 
-// Menggunakan relative path '/api'. 
-// Di Localhost: Ditangani oleh vite.config.ts (Proxy ke IP)
-// Di Vercel: Ditangani oleh vercel.json (Rewrites ke IP)
-const API_URL = '/api';
+// Helper to get dynamic API URL from settings or default to /api (Proxy)
+export const getApiEndpoint = () => {
+    try {
+        const stored = localStorage.getItem('neonflow_api_endpoint');
+        // Remove trailing slash if present
+        if (stored) return stored.replace(/\/$/, "");
+        return '/api';
+    } catch {
+        return '/api';
+    }
+};
 
 async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
+  const baseUrl = getApiEndpoint();
+  
   try {
-    // Tambahkan timestamp untuk mencegah caching agresif browser pada GET request
-    const url = `${API_URL}${endpoint}${endpoint.includes('?') ? '&' : '?'}t=${Date.now()}`;
+    // Add timestamp to prevent caching
+    const url = `${baseUrl}${endpoint}${endpoint.includes('?') ? '&' : '?'}t=${Date.now()}`;
     
     const response = await fetch(url, {
       headers: { 
@@ -20,19 +29,16 @@ async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
 
     const contentType = response.headers.get("content-type");
     
-    // Handling jika response BUKAN JSON (Biasanya error dari Proxy Vercel, Nginx, atau 404 HTML page)
+    // Handling if response is NOT JSON (e.g. Proxy Error, 404 HTML)
     if (!contentType || !contentType.includes("application/json")) {
       const text = await response.text();
-      console.warn(`⚠️ [API Error] Endpoint ${endpoint} returned non-JSON.`);
+      console.warn(`⚠️ [API Error] Endpoint ${url} returned non-JSON.`);
       console.warn(`Status: ${response.status} ${response.statusText}`);
-      console.warn(`Response Preview: ${text.substring(0, 200)}...`);
       
-      // Jika error 404/502/504 dari Vercel/Proxy, itu berarti Backend tidak bisa dijangkau dari Proxy
       if (response.status === 502 || response.status === 504) {
          throw new Error("SERVER_CONNECTION_ERROR"); 
       }
       
-      // Jika status OK (200) tapi bukan JSON, ini aneh.
       throw new Error(`INVALID_RESPONSE_FORMAT: ${response.status}`);
     }
 
@@ -46,15 +52,14 @@ async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
   } catch (err: any) {
     console.error(`❌ Request Failed: ${endpoint}`, err);
 
-    // Deteksi Spesifik Error Koneksi
     const isNetworkError = 
         err.message === 'Failed to fetch' || 
         err.message === 'SERVER_CONNECTION_ERROR' ||
         err.message.includes('NetworkError') ||
-        err.name === 'TypeError'; // Fetch sering melempar TypeError saat network mati
+        err.name === 'TypeError';
 
     if (isNetworkError) {
-      console.error("🌐 Backend Unreachable. Pastikan IP Backend benar dan Firewall mengizinkan port 3000.");
+      console.error("🌐 Backend Unreachable. Check API Endpoint configuration in Settings.");
       throw new Error("BACKEND_OFFLINE");
     }
     
@@ -70,11 +75,11 @@ export const api = {
         body: JSON.stringify(credentials) 
       });
     } catch (err: any) {
-      // Mock Auth Fallback HANYA jika Backend benar-benar Offline/Mati
+      // Mock Fallback only for specific conditions
       if (err.message === "BACKEND_OFFLINE") {
-        console.warn("⚠️ Menggunakan Mode Offline Mock karena Backend tidak merespon.");
         if (credentials.email === 'admin' && credentials.password === '22') {
-          return {
+           console.warn("⚠️ Entering Offline Mode");
+           return {
             token: "mock-session-token-offline",
             user: { id: "usr-1", name: "Super Admin (Offline Mode)", email: "admin", role: "ADMIN" }
           };
